@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- background -->
+  <rect width="512" height="512" rx="80" fill="#f5f0e8"/>
+  <!-- outer ring -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#8b4513" stroke-width="10"/>
+  <!-- sawtooth ray ring -->
+  <g fill="none" stroke="#8b4513" stroke-width="8" stroke-linejoin="miter">
+    <polygon points="
+      256,36  284,80  256,68  228,80
+      308,100 330,148 310,138 320,186
+      476,256 432,284 444,256 432,228
+      412,356 368,330 378,310 330,320
+      256,476 228,432 256,444 284,432
+      100,412 80,368  100,358  56,330
+      36,256  80,228  68,256  80,284
+      56,180  100,154 90,174  138,164
+    " fill="none"/>
+  </g>
+  <!-- 8 radial rays -->
+  <g stroke="#c9a84c" stroke-width="5" opacity="0.7">
+    <line x1="256" y1="80"  x2="256" y2="432"/>
+    <line x1="80"  y1="256" x2="432" y2="256"/>
+    <line x1="130" y1="130" x2="382" y2="382"/>
+    <line x1="382" y1="130" x2="130" y2="382"/>
+  </g>
+  <!-- mid ring -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#8b4513" stroke-width="7"/>
+  <!-- inner ring -->
+  <circle cx="256" cy="256" r="90"  fill="none" stroke="#8b4513" stroke-width="6"/>
+  <!-- 6 petals -->
+  <g fill="#f7ede0" stroke="#8b4513" stroke-width="5">
+    <ellipse cx="256" cy="176" rx="22" ry="55" />
+    <ellipse cx="256" cy="336" rx="22" ry="55" />
+    <ellipse cx="176" cy="256" rx="55" ry="22" />
+    <ellipse cx="336" cy="256" rx="55" ry="22" />
+    <ellipse cx="199" cy="199" rx="22" ry="55" transform="rotate(45 199 199)"/>
+    <ellipse cx="313" cy="313" rx="22" ry="55" transform="rotate(45 313 313)"/>
+    <ellipse cx="313" cy="199" rx="22" ry="55" transform="rotate(-45 313 199)"/>
+    <ellipse cx="199" cy="313" rx="22" ry="55" transform="rotate(-45 199 313)"/>
+  </g>
+  <!-- centre dot -->
+  <circle cx="256" cy="256" r="28" fill="#8b4513"/>
+  <circle cx="256" cy="256" r="14" fill="#f5f0e8"/>
+  <!-- Chinese character 纏 hint — simplified stroke mark -->
+  <text x="256" y="268" font-family="serif" font-size="22" fill="#8b4513"
+        text-anchor="middle" font-weight="bold" opacity="0.85">纏</text>
+</svg>

@@ -1,0 +1,3367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <!-- PWA -->
+  <meta name="theme-color" content="#8b4513">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="纏繞畫">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纏繞畫生成器 · Zentangle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&family=Cinzel:wght@400;600&display=swap');
+
+  :root {
+    --ink: #1a1410;
+    --paper: #f5f0e8;
+    --paper2: #ede8da;
+    --accent: #8b4513;
+    --gold: #c9a84c;
+    --line: #3d2b1f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Noto Serif TC', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Grain texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.6;
+  }
+
+  header {
+    width: 100%;
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid rgba(139,69,19,0.2);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  header h1 {
+    font-family: 'Cinzel', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+  }
+
+  header span {
+    font-size: 0.85rem;
+    color: #8a7a6a;
+    letter-spacing: 0.1em;
+  }
+
+  .workspace {
+    display: flex;
+    gap: 28px;
+    padding: 28px 32px;
+    width: 100%;
+    max-width: 1300px;
+    flex: 1;
+    align-items: flex-start;
+  }
+
+  /* ── LEFT PANEL ── */
+  .left-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 220px;
+  }
+
+  .panel-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(201,168,76,0.3);
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+  }
+
+  .element-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .element-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    background: var(--paper2);
+    border: 1.5px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.82rem;
+    color: var(--ink);
+    transition: all 0.18s;
+    text-align: left;
+  }
+
+  .element-btn:hover { border-color: var(--gold); background: #f0e9d4; }
+  .element-btn.active {
+    border-color: var(--accent);
+    background: #f7ede0;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .element-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  .color-section { display: flex; flex-direction: column; gap: 8px; }
+  .color-row { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: #6a5a4a; }
+  .color-row input[type=color] {
+    width: 36px; height: 24px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; padding: 1px;
+  }
+
+  .size-row { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: #6a5a4a; }
+  .size-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .size-val { min-width: 24px; text-align: right; font-size: 0.8rem; }
+
+  .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+  .btn {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.82rem;
+    transition: all 0.18s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    letter-spacing: 0.05em;
+  }
+  .btn-primary:hover { background: #7a3c10; }
+
+  .btn-secondary {
+    background: var(--paper2);
+    color: var(--ink);
+    border: 1px solid rgba(139,69,19,0.3);
+  }
+  .btn-secondary:hover { background: #e8dfc8; }
+
+  .btn-ghost {
+    background: transparent;
+    color: #8a7a6a;
+    border: 1px dashed rgba(139,69,19,0.25);
+    font-size: 0.78rem;
+  }
+  .btn-ghost:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── CENTER: DOT MATRIX ── */
+  .center-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    flex: 0 0 auto;
+  }
+
+  .matrix-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    color: #9a8a7a;
+    text-transform: uppercase;
+  }
+
+  .matrix-wrap {
+    position: relative;
+    box-shadow: 0 4px 32px rgba(60,30,10,0.12), 0 1px 4px rgba(60,30,10,0.08);
+    border-radius: 3px;
+  }
+
+  #dotMatrix {
+    display: block;
+    border: 1.5px solid rgba(139,69,19,0.25);
+    border-radius: 3px;
+    cursor: crosshair;
+    background: #faf6ee;
+  }
+
+  #dotMatrix.erase-mode { cursor: cell; }
+
+  .matrix-info {
+    font-size: 0.72rem;
+    color: #9a8a7a;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── RIGHT PANEL: CANVAS ── */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+  }
+
+  .canvas-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    color: #9a8a7a;
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+
+  .canvas-wrap {
+    box-shadow: 0 8px 40px rgba(60,30,10,0.15), 0 2px 8px rgba(60,30,10,0.1);
+    border-radius: 4px;
+  }
+
+  #outputCanvas {
+    display: block;
+    border-radius: 4px;
+    background: white;
+  }
+
+  /* ── TOOLBAR STRIP ── */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    padding: 10px 0 0;
+    border-top: 1px solid rgba(139,69,19,0.12);
+  }
+
+  .toolbar-label { font-size: 0.72rem; color: #9a8a7a; letter-spacing: 0.12em; }
+
+  select, .toolbar select {
+    padding: 5px 10px;
+    border: 1px solid rgba(139,69,19,0.25);
+    border-radius: 5px;
+    background: var(--paper2);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.8rem;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .tool-btn {
+    padding: 5px 12px;
+    border-radius: 5px;
+    border: 1px solid rgba(139,69,19,0.25);
+    background: var(--paper2);
+    font-size: 0.78rem;
+    font-family: 'Noto Serif TC', serif;
+    cursor: pointer;
+    color: var(--ink);
+    transition: all 0.15s;
+  }
+  .tool-btn:hover { background: #ede4cc; border-color: var(--gold); }
+  .tool-btn.active-tool { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* ── MODE TOGGLE ── */
+  .mode-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid rgba(139,69,19,0.3);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .mode-btn {
+    padding: 6px 14px;
+    border: none;
+    background: var(--paper2);
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.78rem;
+    cursor: pointer;
+    color: #6a5a4a;
+    transition: all 0.15s;
+  }
+  .mode-btn.active { background: var(--accent); color: white; }
+  .mode-btn:not(:last-child) { border-right: 1px solid rgba(139,69,19,0.2); }
+
+  /* ── ELEMENT PREVIEW SVGs ── */
+  .preview-canvas { width: 100%; display: flex; justify-content: center; }
+
+  footer {
+    width: 100%;
+    text-align: center;
+    padding: 14px;
+    font-size: 0.72rem;
+    color: #aaa;
+    letter-spacing: 0.1em;
+    border-top: 1px solid rgba(139,69,19,0.1);
+  }
+
+  /* ── REGION CHIPS ── */
+  .region-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    background: var(--paper2);
+    transition: all 0.15s;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.8rem;
+    color: var(--ink);
+  }
+  .region-chip:hover { border-color: rgba(139,69,19,0.3); background: #ede4cc; }
+  .region-chip.active-chip {
+    border-color: var(--accent);
+    background: #f7ede0;
+    box-shadow: 0 0 0 2px rgba(139,69,19,0.12);
+  }
+  .region-swatch {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .region-count {
+    margin-left: auto; font-size: 0.7rem; color: #9a8a7a; white-space:nowrap;
+  }
+  .region-del {
+    margin-left:2px; font-size:0.9rem; color:#c08060; opacity:0.6;
+    cursor:pointer; line-height:1; padding: 0 2px;
+  }
+  .region-del:hover { opacity:1; color: #c03020; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ZENTANGLE</h1>
+  <span>纏繞畫生成器</span>
+</header>
+
+<div class="workspace">
+
+  <!-- LEFT: Region Manager -->
+  <div class="left-panel">
+
+    <div>
+      <div class="panel-title">區域管理 · REGIONS</div>
+      <div id="regionList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <button class="btn btn-secondary" style="margin-top:8px;width:100%;font-size:0.78rem;" onclick="addRegion()">＋ 新增區域</button>
+    </div>
+
+    <!-- active region settings injected here -->
+    <div id="activeRegionPanel" style="display:none;">
+      <div class="panel-title" id="activeRegionLabel">區域設定</div>
+
+      <div style="margin-bottom:6px;">
+        <div style="font-size:0.72rem;color:#9a8a7a;margin-bottom:4px;">圖元選擇</div>
+        <div class="element-list" id="elementList" style="max-height:220px;overflow-y:auto;padding-right:2px;"></div>
+      </div>
+
+      <div class="color-section">
+        <div style="font-size:0.72rem;color:#9a8a7a;margin-bottom:4px;">顏色設定</div>
+        <div class="color-row">
+          <span>線條</span>
+          <input type="color" id="strokeColor" value="#1a1410">
+          <span>填充</span>
+          <input type="color" id="fillColor" value="#f5f0e8">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <input type="checkbox" id="fillEnabled" checked>
+          <label for="fillEnabled" style="font-size:0.78rem;color:#6a5a4a;cursor:pointer;">啟用填充色</label>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:0.72rem;color:#9a8a7a;margin-bottom:4px;">尺寸設定</div>
+        <div class="size-row">
+          <span>大小</span>
+          <input type="range" id="elemSize" min="8" max="48" value="20">
+          <span class="size-val" id="elemSizeVal">20</span>
+        </div>
+        <div class="size-row">
+          <span>旋轉</span>
+          <input type="range" id="elemRot" min="0" max="360" value="0">
+          <span class="size-val" id="elemRotVal">0°</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+          <input type="checkbox" id="randomRot" checked>
+          <label for="randomRot" style="font-size:0.78rem;color:#6a5a4a;cursor:pointer;">隨機旋轉</label>
+          <input type="checkbox" id="randomSize" style="margin-left:8px;">
+          <label for="randomSize" style="font-size:0.78rem;color:#6a5a4a;cursor:pointer;">隨機大小</label>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:0.72rem;color:#9a8a7a;margin-bottom:4px;">手繪質感</div>
+        <div class="size-row" style="margin-bottom:4px;">
+          <span style="white-space:nowrap;">位置擾動</span>
+          <input type="range" id="noiseStrength" min="0" max="100" value="30">
+          <span class="size-val" id="noiseStrengthVal">30</span>
+        </div>
+        <div class="size-row" style="margin-bottom:4px;">
+          <span style="white-space:nowrap;">噪聲尺度</span>
+          <input type="range" id="noiseScale" min="1" max="20" value="6">
+          <span class="size-val" id="noiseScaleVal">6</span>
+        </div>
+        <div class="size-row">
+          <span style="white-space:nowrap;">壓力映射</span>
+          <input type="range" id="pressureRange" min="0" max="100" value="50">
+          <span class="size-val" id="pressureRangeVal">50</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+          <input type="checkbox" id="noiseEnabled" checked>
+          <label for="noiseEnabled" style="font-size:0.78rem;color:#6a5a4a;cursor:pointer;">啟用擾動</label>
+          <input type="checkbox" id="pressureEnabled" checked style="margin-left:6px;">
+          <label for="pressureEnabled" style="font-size:0.78rem;color:#6a5a4a;cursor:pointer;">壓力線寬</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <span style="font-size:0.75rem;color:#9a8a7a;">壓力方向</span>
+          <select id="pressureDir" style="flex:1;padding:3px 6px;font-size:0.75rem;">
+            <option value="radial">由中心向外</option>
+            <option value="radial-in">由外向中心</option>
+            <option value="horizontal">左細右粗</option>
+            <option value="vertical">上細下粗</option>
+            <option value="noise">噪聲起伏</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">操作</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="renderOutput()">✦ 生成圖案</button>
+        <button class="btn btn-secondary" onclick="clearMatrix()">清除點矩陣</button>
+        <button class="btn btn-secondary" onclick="fillAllMatrix()">填滿空格</button>
+        <button class="btn btn-ghost" onclick="randomDemo()">隨機示範</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Dot Matrix -->
+  <div class="center-panel">
+    <div class="matrix-label">點矩陣輸入 · DOT MATRIX</div>
+    <div>
+      <div class="mode-toggle" style="margin-bottom:10px;justify-content:center;display:flex;">
+        <button class="mode-btn active" id="drawMode" onclick="setMatrixMode('draw')">繪製</button>
+        <button class="mode-btn" id="eraseMode" onclick="setMatrixMode('erase')">清除</button>
+        <button class="mode-btn" id="regionMode" onclick="setMatrixMode('region')">矩形</button>
+        <button class="mode-btn" id="zoneMode" onclick="setMatrixMode('zone')">塗區域</button>
+      </div>
+    </div>
+    <div class="matrix-wrap">
+      <canvas id="dotMatrix" width="300" height="300"></canvas>
+    </div>
+    <div class="matrix-info" id="matrixInfo">0 個點已選取</div>
+
+    <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+      <select id="presetSelect" style="flex:1;padding:5px 8px;font-size:0.78rem;font-family:'Noto Serif TC',serif;border:1px solid rgba(139,69,19,0.25);border-radius:5px;background:var(--paper2);color:var(--ink);">
+        <optgroup label="── 基本構圖 ──">
+          <option value="diagonal">斜線</option>
+          <option value="spiral">螺旋</option>
+          <option value="circle">圓形</option>
+          <option value="grid">格子</option>
+          <option value="diamond">菱形</option>
+          <option value="wave">波浪</option>
+        </optgroup>
+        <optgroup label="── 圖騰構圖 ──">
+          <option value="radiate">放射狀</option>
+          <option value="xcross">X 交叉</option>
+          <option value="border">邊框環繞</option>
+          <option value="triangle3">三角分區</option>
+          <option value="sunburst">日芒</option>
+          <option value="totemstack">圖騰柱</option>
+        </optgroup>
+        <optgroup label="── 台灣原住民 ──">
+          <option value="tw_rhombus">菱形紋帶（泰雅）</option>
+          <option value="tw_chevron">人字紋（排灣）</option>
+          <option value="tw_cross4">四方連續（阿美）</option>
+          <option value="tw_centipede">百步蛇紋（排灣）</option>
+          <option value="tw_sun">太陽放射（鄒族）</option>
+          <option value="tw_weave">編織斜紋（賽夏）</option>
+        </optgroup>
+        <optgroup label="── 方巾補丁 ──">
+          <option value="bp_scatter">佩斯利散布</option>
+          <option value="bp_checker">棋盤大色塊</option>
+          <option value="bp_star">星形拼布</option>
+          <option value="bp_sashiko">刺子繡格</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <!-- apply preset with mode -->
+    <div style="display:flex;gap:5px;margin-top:6px;align-items:center;">
+      <button class="tool-btn" id="btnApplyReplace"
+        style="flex:1;font-size:0.75rem;padding:6px 4px;background:var(--accent);color:white;border-color:var(--accent);"
+        onclick="applyPreset(document.getElementById('presetSelect').value,'replace')"
+        title="清除目前區域，套入此構圖">加入</button>
+      <button class="tool-btn" id="btnApplyAdd"
+        style="flex:1;font-size:0.75rem;padding:6px 4px;"
+        onclick="applyPreset(document.getElementById('presetSelect').value,'add')"
+        title="保留現有點，新增這層到新區域">疊加 ＋</button>
+      <button class="tool-btn" id="btnApplySubtract"
+        style="flex:1;font-size:0.75rem;padding:6px 4px;"
+        onclick="applyPreset(document.getElementById('presetSelect').value,'subtract')"
+        title="從現有點矩陣中挖去這個構圖的點">減去 －</button>
+    </div>
+
+    <!-- layer log -->
+    <div id="layerLog" style="display:none;margin-top:6px;padding:5px 8px;background:rgba(201,168,76,0.07);border:1px dashed rgba(201,168,76,0.28);border-radius:5px;">
+      <div style="font-size:0.62rem;letter-spacing:0.14em;color:var(--gold);text-transform:uppercase;margin-bottom:3px;">操作紀錄</div>
+      <div id="layerLogList" style="display:flex;flex-direction:column;gap:2px;max-height:80px;overflow-y:auto;"></div>
+      <button onclick="clearLayerLog()"
+        style="margin-top:4px;width:100%;font-size:0.7rem;padding:2px 0;background:none;border:1px solid rgba(139,69,19,0.18);border-radius:3px;cursor:pointer;color:#9a8a7a;font-family:'Noto Serif TC',serif;">
+        清除紀錄</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Output Canvas -->
+  <div class="right-panel">
+    <div class="canvas-label">輸出畫布 · OUTPUT</div>
+    <div class="canvas-wrap">
+      <canvas id="outputCanvas" width="500" height="500"></canvas>
+    </div>
+    <div class="toolbar">
+      <span class="toolbar-label">背景</span>
+      <input type="color" id="bgColor" value="#ffffff" style="width:30px;height:24px;border:1px solid #ccc;border-radius:3px;padding:1px;cursor:pointer;">
+      <span class="toolbar-label" style="margin-left:8px;">線寬</span>
+      <input type="range" id="lineWidth" min="0.5" max="4" step="0.5" value="1.2" style="width:70px;accent-color:var(--accent);">
+      <span id="lineWidthVal" style="font-size:0.78rem;color:#6a5a4a;">1.2</span>
+      <span class="toolbar-label" style="margin-left:8px;">輸出尺寸</span>
+      <select id="outputSize">
+        <option value="500">500×500</option>
+        <option value="800">800×800</option>
+        <option value="1200">1200×1200</option>
+      </select>
+      <button class="tool-btn" onclick="renderOutput()" style="margin-left:auto;">重繪</button>
+      <button class="tool-btn" onclick="downloadPNG()">⬇ PNG</button>
+      <button class="tool-btn" onclick="downloadSVG()">⬇ SVG</button>
+    </div>
+  </div>
+
+</div>
+
+<footer>Zentangle 纏繞畫生成器 · 以點矩陣定義圖元位置，自由創作禪繞藝術</footer>
+
+<script>
+// ═══════════════════════════════════════════
+// ELEMENT DEFINITIONS
+// ═══════════════════════════════════════════
+const ELEMENTS = [
+  {
+    id: 'petal',
+    name: '花瓣 Petal',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const n = 6;
+      for(let i=0;i<n;i++){
+        ctx.save(); ctx.rotate(i*Math.PI*2/n);
+        ctx.beginPath();
+        ctx.ellipse(0, -size*0.45, size*0.18, size*0.45, 0, 0, Math.PI*2);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+        ctx.strokeStyle=stroke; ctx.stroke();
+        ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(0,0,size*0.1,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'spiral',
+    name: '螺旋 Spiral',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      ctx.beginPath();
+      const turns = 3.5;
+      for(let a=0; a<turns*Math.PI*2; a+=0.05){
+        const r = (a/(turns*Math.PI*2))*size*0.5;
+        const px = Math.cos(a)*r, py = Math.sin(a)*r;
+        a===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+      }
+      ctx.strokeStyle=stroke; ctx.stroke();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'cross',
+    name: '十字 Cross',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5, t=size*0.15;
+      ctx.beginPath();
+      ctx.moveTo(-t,-s); ctx.lineTo(t,-s); ctx.lineTo(t,-t);
+      ctx.lineTo(s,-t); ctx.lineTo(s,t); ctx.lineTo(t,t);
+      ctx.lineTo(t,s); ctx.lineTo(-t,s); ctx.lineTo(-t,t);
+      ctx.lineTo(-s,t); ctx.lineTo(-s,-t); ctx.lineTo(-t,-t);
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+      ctx.strokeStyle=stroke; ctx.stroke();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'leaf',
+    name: '葉片 Leaf',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      ctx.beginPath();
+      ctx.moveTo(0,-size*0.5);
+      ctx.bezierCurveTo(size*0.4,-size*0.2, size*0.4,size*0.2, 0,size*0.5);
+      ctx.bezierCurveTo(-size*0.4,size*0.2, -size*0.4,-size*0.2, 0,-size*0.5);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+      ctx.strokeStyle=stroke; ctx.stroke();
+      // veins
+      ctx.beginPath(); ctx.moveTo(0,-size*0.5); ctx.lineTo(0,size*0.5);
+      ctx.strokeStyle=stroke; ctx.globalAlpha=0.4; ctx.stroke(); ctx.globalAlpha=1;
+      for(let i=1;i<=3;i++){
+        const py = -size*0.25 + i*size*0.15;
+        const px = size*0.28*(1-Math.abs(py)/size*1.5);
+        ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(px,py+size*0.08);
+        ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(-px,py+size*0.08);
+        ctx.strokeStyle=stroke; ctx.globalAlpha=0.35; ctx.stroke(); ctx.globalAlpha=1;
+      }
+      ctx.restore();
+    }
+  },
+  {
+    id: 'star',
+    name: '星形 Star',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const n=8, r1=size*0.5, r2=size*0.22;
+      ctx.beginPath();
+      for(let i=0;i<n*2;i++){
+        const r = i%2===0 ? r1 : r2;
+        const a = i*Math.PI/n - Math.PI/2;
+        i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r)
+               : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+      }
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+      ctx.strokeStyle=stroke; ctx.stroke();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'wave',
+    name: '波紋 Wave',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const rings=4;
+      for(let r=1;r<=rings;r++){
+        ctx.beginPath();
+        const rad = size*0.5*(r/rings);
+        // warped circle
+        for(let a=0;a<Math.PI*2;a+=0.05){
+          const warp = 1 + 0.18*Math.sin(a*5);
+          const px = Math.cos(a)*rad*warp;
+          const py = Math.sin(a)*rad*warp;
+          a===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+        }
+        ctx.closePath();
+        if(fillOn && r===rings){ctx.fillStyle=fill; ctx.fill();}
+        ctx.strokeStyle=stroke; ctx.globalAlpha=0.4+0.6*(r/rings); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+  {
+    id: 'hex',
+    name: '六角 Hexagon',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const n=6;
+      for(let layer=1;layer<=3;layer++){
+        ctx.beginPath();
+        for(let i=0;i<n;i++){
+          const a = i*Math.PI*2/n - Math.PI/2;
+          const r = size*0.5*(layer/3);
+          i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r)
+                 : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+        }
+        ctx.closePath();
+        if(fillOn && layer===1){ctx.fillStyle=fill; ctx.fill();}
+        ctx.strokeStyle=stroke; ctx.globalAlpha=0.3+0.7*(1/layer); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      // spokes
+      ctx.globalAlpha=0.3;
+      for(let i=0;i<n;i++){
+        const a = i*Math.PI*2/n - Math.PI/2;
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*size*0.5, Math.sin(a)*size*0.5);
+        ctx.strokeStyle=stroke; ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+  {
+    id: 'diamond',
+    name: '菱格 Diamond',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const steps=4;
+      for(let s=steps;s>=1;s--){
+        const r = size*0.5*(s/steps);
+        ctx.beginPath();
+        ctx.moveTo(0,-r); ctx.lineTo(r,0); ctx.lineTo(0,r); ctx.lineTo(-r,0); ctx.closePath();
+        if(fillOn && s===1){ctx.fillStyle=fill; ctx.fill();}
+        ctx.strokeStyle=stroke; ctx.globalAlpha=0.3+0.7*(1-(s-1)/steps); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+  {
+    id: 'brick',
+    name: '磚紋 Brick',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const rows=3, cols=2;
+      const bw=size/cols, bh=size/rows;
+      for(let r=0;r<rows;r++){
+        const offset = r%2===0 ? 0 : bw*0.5;
+        for(let c=-1;c<=cols;c++){
+          ctx.beginPath();
+          const bx = -size/2 + c*bw + offset;
+          const by = -size/2 + r*bh;
+          ctx.rect(bx, by, bw*0.92, bh*0.88);
+          if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+          ctx.strokeStyle=stroke; ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  },
+  {
+    id: 'scale',
+    name: '鱗片 Scale',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const n=3;
+      for(let r=0;r<n;r++){
+        for(let c=0;c<n;c++){
+          const sx = (c - n/2 + 0.5) * size*0.38;
+          const sy = (r - n/2 + 0.5) * size*0.38;
+          ctx.beginPath();
+          ctx.arc(sx, sy, size*0.22, Math.PI, Math.PI*2);
+          ctx.closePath();
+          if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+          ctx.strokeStyle=stroke; ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  },
+  {
+    id: 'eye',
+    name: '眼形 Eye',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      ctx.beginPath();
+      ctx.moveTo(-size*0.5, 0);
+      ctx.bezierCurveTo(-size*0.2, -size*0.32, size*0.2, -size*0.32, size*0.5, 0);
+      ctx.bezierCurveTo(size*0.2, size*0.32, -size*0.2, size*0.32, -size*0.5, 0);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+      ctx.strokeStyle=stroke; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, size*0.15, 0, Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'triangle',
+    name: '三角 Triangle',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const layers=4;
+      for(let l=layers;l>=1;l--){
+        const r=size*0.5*(l/layers);
+        ctx.beginPath();
+        for(let i=0;i<3;i++){
+          const a = i*Math.PI*2/3 - Math.PI/2;
+          i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r)
+                 : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+        }
+        ctx.closePath();
+        if(fillOn && l===1){ctx.fillStyle=fill; ctx.fill();}
+        ctx.strokeStyle=stroke; ctx.globalAlpha=0.25+0.75*(l/layers); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // ── NEW: FLOWLINES ─────────────────────────────────────────────────────────
+  // 連續流線：在 size×size 方塊內畫等距彎曲平行線，模擬手繪波浪填充區域
+  {
+    id: 'flowlines',
+    name: '流線 Flowlines',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const half = size*0.5;
+      // background fill
+      if(fillOn){
+        ctx.beginPath(); ctx.rect(-half,-half,size,size);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+      // clip to square so lines don't overflow
+      ctx.beginPath(); ctx.rect(-half,-half,size,size); ctx.clip();
+
+      const lines = 7;            // number of flow lines
+      const amp   = size*0.12;    // wave amplitude
+      const freq  = 2.8;          // wave cycles across the width
+      const steps = 40;
+
+      ctx.strokeStyle=stroke; ctx.lineWidth = ctx.lineWidth || 1;
+      for(let li=0; li<lines; li++){
+        const yOff = -half + (li+0.5)*(size/lines);
+        // phase offset per line to create flowing feel
+        const phase = li * (Math.PI*0.55);
+        ctx.beginPath();
+        for(let s=0; s<=steps; s++){
+          const t  = s/steps;
+          const px = -half + t*size;
+          const py = yOff + amp*Math.sin(t*Math.PI*2*freq + phase);
+          s===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+        }
+        // vary opacity slightly for organic feel
+        ctx.globalAlpha = 0.65 + 0.35*(li%2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // ── NEW: CONCENTRIC CIRCLES (散落同心圓) ────────────────────────────────────
+  // 在 tile 內散布 3 個隨機大小的同心圓族群，對應右圖右上區域
+  {
+    id: 'rings',
+    name: '同心圓 Rings',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const half=size*0.5;
+      if(fillOn){
+        ctx.beginPath(); ctx.rect(-half,-half,size,size);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+      ctx.beginPath(); ctx.rect(-half,-half,size,size); ctx.clip();
+
+      // deterministic "random" positions based on size (stable across redraws)
+      const seed = Math.round(size*7+13);
+      const lcg  = (s) => ((s*1664525+1013904223)>>>0);
+      let s0=seed;
+      const rnd=()=>{ s0=lcg(s0); return (s0/0xffffffff); };
+
+      const clusters = 3;
+      ctx.strokeStyle=stroke;
+      for(let k=0; k<clusters; k++){
+        const cx = (-half*0.7) + rnd()*size*0.7;
+        const cy = (-half*0.7) + rnd()*size*0.7;
+        const maxR = size*(0.10 + rnd()*0.14);
+        const nRings = 3 + Math.floor(rnd()*3);   // 3–5 rings
+        for(let r=nRings; r>=1; r--){
+          const rad = maxR*(r/nRings);
+          ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2);
+          if(fillOn && r===1){ ctx.fillStyle=fill; ctx.fill(); }
+          ctx.globalAlpha = 0.4 + 0.6*(1 - r/nRings);
+          ctx.stroke();
+        }
+        // solid dot at centre
+        ctx.beginPath(); ctx.arc(cx,cy,maxR*0.12,0,Math.PI*2);
+        ctx.fillStyle=stroke; ctx.globalAlpha=1; ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // ── NEW: PEBBLES (鵝卵石) ──────────────────────────────────────────────────
+  // 用隨機有機 blob 填滿 tile，模擬鵝卵石/細胞紋，對應右圖左下
+  {
+    id: 'pebbles',
+    name: '鵝卵石 Pebbles',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const half=size*0.5;
+      if(fillOn){
+        ctx.beginPath(); ctx.rect(-half,-half,size,size);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+      ctx.beginPath(); ctx.rect(-half,-half,size,size); ctx.clip();
+
+      // seeded rng for stable layout
+      let s0 = Math.round(size*11+7);
+      const lcg=(s)=>((s*1664525+1013904223)>>>0);
+      const rnd=()=>{ s0=lcg(s0); return s0/0xffffffff; };
+
+      // pack pebbles with simple rejection sampling
+      const pebbles=[];
+      const attempts=120;
+      const minR=size*0.08, maxR=size*0.18;
+      for(let i=0;i<attempts;i++){
+        const r  = minR + rnd()*(maxR-minR);
+        const px = -half + r + rnd()*(size-2*r);
+        const py = -half + r + rnd()*(size-2*r);
+        // check overlap
+        let ok=true;
+        for(const pb of pebbles){
+          const d=Math.hypot(px-pb.x, py-pb.y);
+          if(d < r+pb.r+size*0.02){ ok=false; break; }
+        }
+        if(ok) pebbles.push({x:px,y:py,r,seed:Math.floor(rnd()*1000)});
+        if(pebbles.length>=9) break;
+      }
+
+      // draw each pebble as a wobbly ellipse via bezier
+      pebbles.forEach(pb=>{
+        const wobble = (a, base) => {
+          // add per-pebble deterministic wobble using sin harmonics
+          const w1 = 0.12*Math.sin(a*2 + pb.seed*0.1);
+          const w2 = 0.07*Math.sin(a*3 + pb.seed*0.3);
+          return base*(1 + w1 + w2);
+        };
+        const pts=12;
+        ctx.beginPath();
+        for(let i=0;i<=pts;i++){
+          const a  = (i/pts)*Math.PI*2;
+          const rx = pb.r*(1 + 0.15*Math.sin(pb.seed));   // slight ellipse
+          const ry = pb.r*(1 - 0.12*Math.cos(pb.seed));
+          const r  = wobble(a, Math.sqrt(rx*rx*Math.cos(a)**2 + ry*ry*Math.sin(a)**2));
+          const px2 = pb.x + Math.cos(a)*r;
+          const py2 = pb.y + Math.sin(a)*r;
+          i===0 ? ctx.moveTo(px2,py2) : ctx.lineTo(px2,py2);
+        }
+        ctx.closePath();
+        if(fillOn){
+          // subtle inner shadow: light fill with a tiny radial dodge
+          ctx.fillStyle=fill; ctx.fill();
+        }
+        ctx.strokeStyle=stroke; ctx.stroke();
+      });
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // ── NEW: NESTED GRID (嵌套方格) ─────────────────────────────────────────────
+  // 方格內有斜線陰影 + 縮小內框，對應左圖右半的 Hollibaugh 式格紋
+  {
+    id: 'nestedgrid',
+    name: '嵌套格 NestedGrid',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const half=size*0.5;
+      const cols=3, rows=3;
+      const cw=size/cols, rh=size/rows;
+
+      ctx.strokeStyle=stroke;
+      for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+          const ox=-half+c*cw, oy=-half+r*rh;
+          // outer box
+          ctx.beginPath(); ctx.rect(ox,oy,cw,rh);
+          if(fillOn){ ctx.fillStyle=fill; ctx.fill(); }
+          ctx.stroke();
+          // inner box (inset)
+          const inset=cw*0.18;
+          ctx.beginPath(); ctx.rect(ox+inset,oy+inset,cw-inset*2,rh-inset*2);
+          ctx.stroke();
+          // diagonal hatching inside inner box
+          ctx.save();
+          ctx.beginPath(); ctx.rect(ox+inset,oy+inset,cw-inset*2,rh-inset*2); ctx.clip();
+          const step=(cw-inset*2)*0.28;
+          ctx.globalAlpha=0.55;
+          for(let h=-2;h<=4;h++){
+            const hx=ox+inset+h*step;
+            ctx.beginPath();
+            ctx.moveTo(hx, oy+inset);
+            ctx.lineTo(hx+(rh-inset*2), oy+rh-inset);
+            ctx.stroke();
+          }
+          ctx.globalAlpha=1;
+          ctx.restore();
+          // corner triangles (make it feel 3-D like Tipple)
+          ctx.globalAlpha=0.2;
+          ctx.beginPath();
+          ctx.moveTo(ox,oy); ctx.lineTo(ox+inset,oy+inset); ctx.lineTo(ox+cw,oy);
+          ctx.closePath();
+          ctx.fillStyle=stroke; ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(ox,oy+rh); ctx.lineTo(ox+inset,oy+rh-inset); ctx.lineTo(ox+cw,oy+rh);
+          ctx.closePath(); ctx.fill();
+          ctx.globalAlpha=1;
+        }
+      }
+      ctx.restore();
+    }
+  },
+
+  // ── NEW: HATCHED LEAF (陰影葉片) ──────────────────────────────────────────
+  // 葉片內帶平行陰影線，對應左圖左半的放射葉
+  {
+    id: 'hatchleaf',
+    name: '陰影葉 HatchLeaf',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      // outer leaf silhouette
+      ctx.beginPath();
+      ctx.moveTo(0,-size*0.5);
+      ctx.bezierCurveTo( size*0.38,-size*0.18,  size*0.38, size*0.18, 0, size*0.5);
+      ctx.bezierCurveTo(-size*0.38, size*0.18, -size*0.38,-size*0.18, 0,-size*0.5);
+      if(fillOn){ ctx.fillStyle=fill; ctx.fill(); }
+      // clip hatching to leaf shape
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0,-size*0.5);
+      ctx.bezierCurveTo( size*0.38,-size*0.18,  size*0.38, size*0.18, 0, size*0.5);
+      ctx.bezierCurveTo(-size*0.38, size*0.18, -size*0.38,-size*0.18, 0,-size*0.5);
+      ctx.clip();
+      // parallel hatching lines, angled 35°
+      const hStep = size*0.10;
+      const hCount = Math.ceil(size/hStep)+2;
+      ctx.strokeStyle=stroke; ctx.globalAlpha=0.45;
+      for(let h=-hCount; h<=hCount; h++){
+        const hx = h*hStep;
+        ctx.beginPath();
+        ctx.moveTo(hx - size*0.6*Math.cos(0.6), -size*0.6);
+        ctx.lineTo(hx + size*0.6*Math.cos(0.6),  size*0.6);
+        ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+      // leaf outline
+      ctx.beginPath();
+      ctx.moveTo(0,-size*0.5);
+      ctx.bezierCurveTo( size*0.38,-size*0.18,  size*0.38, size*0.18, 0, size*0.5);
+      ctx.bezierCurveTo(-size*0.38, size*0.18, -size*0.38,-size*0.18, 0,-size*0.5);
+      ctx.strokeStyle=stroke; ctx.stroke();
+      // centre vein
+      ctx.beginPath(); ctx.moveTo(0,-size*0.5); ctx.lineTo(0,size*0.5);
+      ctx.globalAlpha=0.5; ctx.stroke(); ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // ── TOTEMIC ELEMENTS ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  // 1. 太陽圖騰 Sun Totem — 馬雅/阿茲特克太陽石風格
+  // 同心圓 + 放射三角鋸齒 + 符號輻射線
+  {
+    id: 'suntotem',
+    name: '太陽圖騰 SunTotem',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const R = size*0.5, r1=R*0.72, r2=R*0.52, r3=R*0.30;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // outer ring
+      ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // sawtooth ray ring between R and r1
+      const rays=16;
+      ctx.beginPath();
+      for(let i=0;i<rays;i++){
+        const a0=(i/rays)*Math.PI*2, a1=((i+0.5)/rays)*Math.PI*2, a2=((i+1)/rays)*Math.PI*2;
+        const p0x=Math.cos(a0)*r1, p0y=Math.sin(a0)*r1;
+        const p1x=Math.cos(a1)*R,  p1y=Math.sin(a1)*R;
+        const p2x=Math.cos(a2)*r1, p2y=Math.sin(a2)*r1;
+        i===0 ? ctx.moveTo(p0x,p0y) : ctx.lineTo(p0x,p0y);
+        ctx.lineTo(p1x,p1y); ctx.lineTo(p2x,p2y);
+      }
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // inner rings
+      [r2, r3].forEach(r=>{ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke(); });
+
+      // radial lines inner zone
+      const spokes=8;
+      ctx.globalAlpha=0.55;
+      for(let i=0;i<spokes;i++){
+        const a=i*Math.PI*2/spokes;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a)*r3*0.3, Math.sin(a)*r3*0.3);
+        ctx.lineTo(Math.cos(a)*r2, Math.sin(a)*r2); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+
+      // centre dot
+      ctx.beginPath(); ctx.arc(0,0,r3*0.22,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+
+  // 2. 圖騰面具 Totem Face — 太平洋西北原住民幾何臉譜
+  {
+    id: 'totemface',
+    name: '面具圖騰 TotemFace',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round';
+
+      // face outline — rounded rect
+      ctx.beginPath();
+      ctx.roundRect(-s*0.7, -s, s*1.4, s*2, s*0.18);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // brow bar
+      ctx.beginPath(); ctx.moveTo(-s*0.6, -s*0.5); ctx.lineTo(s*0.6, -s*0.5); ctx.stroke();
+
+      // eyes — oval with inner pupil
+      [[-s*0.32, -s*0.22],[s*0.32, -s*0.22]].forEach(([ex,ey])=>{
+        ctx.beginPath(); ctx.ellipse(ex,ey,s*0.18,s*0.13,0,0,Math.PI*2);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+        ctx.beginPath(); ctx.arc(ex,ey,s*0.07,0,Math.PI*2);
+        ctx.fillStyle=stroke; ctx.fill();
+      });
+
+      // nose — triangle
+      ctx.beginPath();
+      ctx.moveTo(0,-s*0.02); ctx.lineTo(-s*0.14,s*0.22); ctx.lineTo(s*0.14,s*0.22);
+      ctx.closePath(); ctx.stroke();
+
+      // mouth — wide arc
+      ctx.beginPath();
+      ctx.arc(0, s*0.45, s*0.32, Math.PI*0.15, Math.PI*0.85);
+      ctx.stroke();
+
+      // cheek designs — concentric arcs
+      [[-s*0.55, 0],[s*0.55, 0]].forEach(([cx2,cy2])=>{
+        for(let r=1;r<=2;r++){
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, s*0.15*r, -Math.PI*0.6, Math.PI*0.6);
+          ctx.globalAlpha=0.4+0.3*r; ctx.stroke();
+        }
+      });
+      ctx.globalAlpha=1;
+
+      // forehead — step pattern
+      ctx.globalAlpha=0.5;
+      ctx.beginPath();
+      ctx.moveTo(-s*0.45,-s*0.9); ctx.lineTo(-s*0.45,-s*0.55);
+      ctx.lineTo(-s*0.15,-s*0.55); ctx.lineTo(-s*0.15,-s*0.72);
+      ctx.lineTo(s*0.15,-s*0.72); ctx.lineTo(s*0.15,-s*0.55);
+      ctx.lineTo(s*0.45,-s*0.55); ctx.lineTo(s*0.45,-s*0.9);
+      ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // 3. 凱爾特結 Celtic Knot — 基礎四節互扣
+  {
+    id: 'celticknot',
+    name: '凱爾特結 CelticKnot',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.42;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.lineWidth=(ctx.lineWidth||1)*1.0;
+
+      // Draw classic 4-loop interlace via two overlapping ovals
+      // background fill circle
+      if(fillOn){
+        ctx.beginPath(); ctx.arc(0,0,size*0.5,0,Math.PI*2);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+
+      const lw2 = (ctx.lineWidth||1)*2.2;
+      // outer guide circle
+      ctx.beginPath(); ctx.arc(0,0,s*1.1,0,Math.PI*2);
+      ctx.globalAlpha=0.2; ctx.stroke(); ctx.globalAlpha=1;
+
+      // 4 interlocking loops using bezier arcs
+      const loops=4;
+      for(let i=0;i<loops;i++){
+        const a0 = (i/loops)*Math.PI*2;
+        const a1 = ((i+1)/loops)*Math.PI*2;
+        const am = (a0+a1)/2;
+        // outer node
+        const ox=Math.cos(am)*s*0.85, oy=Math.sin(am)*s*0.85;
+        // inner knot centre
+        const ix=Math.cos(am)*s*0.28, iy=Math.sin(am)*s*0.28;
+        // adjacent outer nodes
+        const lx=Math.cos(a0)*s*0.85, ly=Math.sin(a0)*s*0.85;
+        const rx=Math.cos(a1)*s*0.85, ry=Math.sin(a1)*s*0.85;
+
+        // thick "rope" border (white knockout for over-under illusion)
+        ctx.lineWidth=(ctx.lineWidth||1)*2.8;
+        ctx.strokeStyle=fillOn?fill:'white';
+        ctx.beginPath();
+        ctx.moveTo(lx,ly);
+        ctx.bezierCurveTo(lx*0.5+ix*0.5, ly*0.5+iy*0.5, ox*0.6+ix*0.4, oy*0.6+iy*0.4, ox,oy);
+        ctx.bezierCurveTo(ox*0.6+ix*0.4, oy*0.6+iy*0.4, rx*0.5+ix*0.5, ry*0.5+iy*0.5, rx,ry);
+        ctx.stroke();
+
+        // actual rope stroke
+        ctx.lineWidth=(ctx.lineWidth||1)/2.8*1.4;
+        ctx.strokeStyle=stroke;
+        ctx.beginPath();
+        ctx.moveTo(lx,ly);
+        ctx.bezierCurveTo(lx*0.5+ix*0.5, ly*0.5+iy*0.5, ox*0.6+ix*0.4, oy*0.6+iy*0.4, ox,oy);
+        ctx.bezierCurveTo(ox*0.6+ix*0.4, oy*0.6+iy*0.4, rx*0.5+ix*0.5, ry*0.5+iy*0.5, rx,ry);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+
+  // 4. 雷鳥羽翼 Thunderbird — 美洲原住民抽象鳥形圖騰
+  {
+    id: 'thunderbird',
+    name: '雷鳥 Thunderbird',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter'; ctx.lineCap='square';
+
+      // body fill background
+      if(fillOn){
+        ctx.beginPath(); ctx.ellipse(0,0,s*0.28,s*0.42,0,0,Math.PI*2);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+
+      // wings — stepped geometric angular wings (4 steps each side)
+      const steps=4;
+      const drawWing = (dir) => {
+        ctx.beginPath();
+        ctx.moveTo(0, -s*0.15);
+        for(let i=0;i<steps;i++){
+          const wx = dir*(s*0.18+i*s*0.18);
+          const wy = -s*0.15 + i*s*0.12;
+          ctx.lineTo(wx, wy);
+          ctx.lineTo(wx, wy+s*0.10);
+        }
+        ctx.lineTo(dir*s, s*0.15);
+        ctx.lineTo(dir*s*0.6, s*0.25);
+        ctx.lineTo(dir*s*0.2, s*0.15);
+        ctx.lineTo(0, s*0.18);
+        ctx.closePath();
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+        ctx.stroke();
+      };
+      drawWing(1); drawWing(-1);
+
+      // body outline
+      ctx.beginPath(); ctx.ellipse(0,0,s*0.28,s*0.42,0,0,Math.PI*2);
+      ctx.stroke();
+
+      // head — square with beak
+      ctx.beginPath();
+      ctx.rect(-s*0.18,-s*0.82,s*0.36,s*0.32);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+      // beak
+      ctx.beginPath();
+      ctx.moveTo(-s*0.08,-s*0.5); ctx.lineTo(s*0.08,-s*0.5); ctx.lineTo(0,-s*0.36);
+      ctx.closePath(); ctx.fillStyle=stroke; ctx.fill();
+      // eye
+      ctx.beginPath(); ctx.arc(0,-s*0.70,s*0.06,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+
+      // tail feathers — three downward wedges
+      for(let t=-1;t<=1;t++){
+        ctx.beginPath();
+        ctx.moveTo(t*s*0.18, s*0.38);
+        ctx.lineTo(t*s*0.08, s*0.75);
+        ctx.lineTo(t*s*0.28, s*0.75);
+        ctx.closePath();
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+
+  // 5. 幾何曼陀羅 Mandala — 八方對稱幾何，印度/伊斯蘭融合風
+  {
+    id: 'mandala',
+    name: '曼陀羅 Mandala',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const R=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round';
+      const sym=8;
+
+      if(fillOn){
+        ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+
+      // outer petal ring
+      for(let i=0;i<sym;i++){
+        ctx.save(); ctx.rotate(i*Math.PI*2/sym);
+        ctx.beginPath();
+        ctx.ellipse(0,-R*0.62,R*0.14,R*0.38,0,0,Math.PI*2);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // polygon rings
+      [R*0.88, R*0.62, R*0.38].forEach((r,li)=>{
+        ctx.beginPath();
+        for(let i=0;i<sym;i++){
+          const a=i*Math.PI*2/sym - Math.PI/sym*(li%2);
+          i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r)
+                 : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+        }
+        ctx.closePath(); ctx.stroke();
+      });
+
+      // inner star
+      ctx.beginPath();
+      for(let i=0;i<sym*2;i++){
+        const r2= i%2===0 ? R*0.38 : R*0.18;
+        const a=i*Math.PI/sym;
+        i===0 ? ctx.moveTo(Math.cos(a)*r2, Math.sin(a)*r2)
+               : ctx.lineTo(Math.cos(a)*r2, Math.sin(a)*r2);
+      }
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+      ctx.stroke();
+
+      // centre circle
+      ctx.beginPath(); ctx.arc(0,0,R*0.10,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+
+  // 6. 螺旋圖騰 Spiral Totem — 馬奧利 Koru 風格，雙螺旋對稱
+  {
+    id: 'koru',
+    name: '螺旋圖騰 Koru',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.46;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round'; ctx.lineCap='round';
+
+      const drawKoru=(dir)=>{
+        ctx.save(); ctx.scale(dir,1);
+        // stem
+        ctx.beginPath();
+        ctx.moveTo(0, s*0.9);
+        ctx.bezierCurveTo(s*0.05,s*0.5, s*0.55,s*0.4, s*0.5,0);
+        // spiral
+        const turns=2.2, steps=80;
+        for(let i=0;i<=steps;i++){
+          const t=i/steps;
+          const a=t*turns*Math.PI*2 - Math.PI/2;
+          const r=s*(0.42 - t*0.30);
+          const px=s*0.5+Math.cos(a)*r;
+          const py=Math.sin(a)*r;
+          ctx.lineTo(px,py);
+        }
+        if(fillOn){
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(0,s*0.9);
+          ctx.bezierCurveTo(s*0.05,s*0.5,s*0.55,s*0.4,s*0.5,0);
+          for(let i=0;i<=steps;i++){
+            const t=i/steps, a=t*turns*Math.PI*2-Math.PI/2, r=s*(0.42-t*0.30);
+            ctx.lineTo(s*0.5+Math.cos(a)*r, Math.sin(a)*r);
+          }
+          ctx.fillStyle=fill; ctx.fill();
+          ctx.restore();
+        }
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      // Two mirrored koru
+      ctx.save(); ctx.translate(0, -s*0.1);
+      drawKoru(1); drawKoru(-1);
+      ctx.restore();
+      ctx.restore();
+    }
+  },
+
+  // 7. 部落菱紋 Tribal Diamond — 東南亞/非洲部落紡織幾何
+  {
+    id: 'tribaldiamond',
+    name: '部落菱紋 TribalDiamond',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // outer diamond
+      ctx.beginPath();
+      ctx.moveTo(0,-s); ctx.lineTo(s,0); ctx.lineTo(0,s); ctx.lineTo(-s,0);
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // nested diamonds with step bands
+      [0.72,0.48,0.28].forEach((scale,li)=>{
+        const r=s*scale;
+        ctx.beginPath();
+        ctx.moveTo(0,-r); ctx.lineTo(r,0); ctx.lineTo(0,r); ctx.lineTo(-r,0);
+        ctx.closePath(); ctx.stroke();
+      });
+
+      // cross inside innermost
+      const ic=s*0.28;
+      ctx.globalAlpha=0.5;
+      ctx.beginPath(); ctx.moveTo(-ic,0); ctx.lineTo(ic,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-ic); ctx.lineTo(0,ic); ctx.stroke();
+
+      // corner triangle fills (alternating)
+      ctx.globalAlpha=0.22;
+      [[0,-s,s*0.48,0,0,-s*0.48],[s,0,0,-s*0.48,s*0.48,0],[0,s,-s*0.48,0,0,s*0.48],[-s,0,0,s*0.48,-s*0.48,0]].forEach(([x1,y1,x2,y2,x3,y3])=>{
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3);
+        ctx.closePath(); ctx.fillStyle=stroke; ctx.fill();
+      });
+
+      // diagonal stitch marks at outer band
+      ctx.globalAlpha=0.45;
+      const stitches=6;
+      for(let i=0;i<stitches;i++){
+        const t=(i+0.5)/stitches;
+        const bx=s*(1-t)-s*0.28*t, by=-s*t+s*0.28*(t);
+        ctx.beginPath(); ctx.moveTo(bx-s*0.05,by-s*0.05); ctx.lineTo(bx+s*0.05,by+s*0.05); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // 8. 象形文字磚 Glyph Tile — 類馬雅/埃及象形符號方塊
+  {
+    id: 'glyphtile',
+    name: '符文磚 GlyphTile',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round'; ctx.lineCap='round';
+
+      // outer stone block
+      ctx.beginPath(); ctx.roundRect(-s,-s,size,size, s*0.08);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // inner frame
+      const pad=s*0.16;
+      ctx.beginPath(); ctx.roundRect(-s+pad,-s+pad,size-pad*2,size-pad*2, s*0.05);
+      ctx.globalAlpha=0.4; ctx.stroke(); ctx.globalAlpha=1;
+
+      // glyph content — deterministic per size
+      const g=Math.round(size)%6;
+
+      if(g===0){
+        // eye of Horus style
+        ctx.beginPath(); ctx.arc(0,-s*0.15,s*0.25,0,Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0,-s*0.15,s*0.10,0,Math.PI*2); ctx.fillStyle=stroke; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-s*0.38,s*0.18); ctx.lineTo(0,s*0.05); ctx.lineTo(s*0.38,s*0.18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,s*0.10); ctx.lineTo(0,s*0.55); ctx.stroke();
+      } else if(g===1){
+        // stepped pyramid cross
+        const py=[[0,-s*0.55],[s*0.18,-s*0.28],[s*0.18,-s*0.05],[s*0.42,-s*0.05],[s*0.42,s*0.18],[s*0.18,s*0.18],[s*0.18,s*0.55],[- s*0.18,s*0.55],[-s*0.18,s*0.18],[-s*0.42,s*0.18],[-s*0.42,-s*0.05],[-s*0.18,-s*0.05],[-s*0.18,-s*0.28]];
+        ctx.beginPath(); py.forEach(([px2,py2],i)=> i===0?ctx.moveTo(px2,py2):ctx.lineTo(px2,py2)); ctx.closePath();
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+      } else if(g===2){
+        // hand symbol
+        const fingers=[[-s*0.22,-s*0.55],[-s*0.07,-s*0.62],[s*0.07,-s*0.62],[s*0.22,-s*0.55]];
+        fingers.forEach(([fx,fy])=>{
+          ctx.beginPath(); ctx.moveTo(fx,s*0.05); ctx.lineTo(fx,fy); ctx.stroke();
+          ctx.beginPath(); ctx.arc(fx,fy,s*0.06,0,Math.PI*2); ctx.stroke();
+        });
+        ctx.beginPath(); ctx.roundRect(-s*0.35,-s*0.02,s*0.7,s*0.55,s*0.12);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+      } else if(g===3){
+        // arrow / feather stack
+        for(let i=0;i<4;i++){
+          const py2=-s*0.5+i*s*0.32;
+          ctx.beginPath();
+          ctx.moveTo(0,py2); ctx.lineTo(-s*0.3,py2+s*0.2); ctx.moveTo(0,py2); ctx.lineTo(s*0.3,py2+s*0.2);
+          ctx.moveTo(0,py2); ctx.lineTo(0,py2+s*0.25);
+          ctx.stroke();
+        }
+      } else if(g===4){
+        // concentric squares rotated 45°
+        [0.55,0.38,0.20].forEach(sc=>{
+          ctx.save(); ctx.rotate(Math.PI/4);
+          const r=s*sc;
+          ctx.beginPath(); ctx.rect(-r,-r,r*2,r*2); ctx.stroke();
+          ctx.restore();
+        });
+        ctx.beginPath(); ctx.arc(0,0,s*0.07,0,Math.PI*2); ctx.fillStyle=stroke; ctx.fill();
+      } else {
+        // wave stack
+        for(let w=0;w<4;w++){
+          const wy=-s*0.45+w*s*0.3;
+          ctx.beginPath(); ctx.moveTo(-s*0.38,wy);
+          ctx.bezierCurveTo(-s*0.12,wy-s*0.15, s*0.12,wy+s*0.15, s*0.38,wy);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // ── 台灣原住民圖騰元素 TAIWAN INDIGENOUS ─────────────────
+  // ══════════════════════════════════════════════════════════
+
+  // TW-1. 泰雅菱形紋 Atayal Rhombus
+  // 泰雅族織布核心紋樣：上下對稱菱形 + 內部交叉網格 + 邊緣齒狀
+  {
+    id: 'tw_atayal',
+    name: '泰雅菱紋 Atayal',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter'; ctx.lineCap='square';
+
+      // outer diamond
+      ctx.beginPath();
+      ctx.moveTo(0,-s); ctx.lineTo(s*0.7,0); ctx.lineTo(0,s); ctx.lineTo(-s*0.7,0);
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // inner diamond
+      ctx.beginPath();
+      ctx.moveTo(0,-s*0.55); ctx.lineTo(s*0.38,0); ctx.lineTo(0,s*0.55); ctx.lineTo(-s*0.38,0);
+      ctx.closePath(); ctx.stroke();
+
+      // inner cross grid
+      ctx.globalAlpha=0.5;
+      ctx.beginPath(); ctx.moveTo(-s*0.38,0); ctx.lineTo(s*0.38,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-s*0.55); ctx.lineTo(0,s*0.55); ctx.stroke();
+      // diagonal cross inside inner
+      ctx.beginPath(); ctx.moveTo(-s*0.27,-s*0.27); ctx.lineTo(s*0.27,s*0.27); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(s*0.27,-s*0.27); ctx.lineTo(-s*0.27,s*0.27); ctx.stroke();
+      ctx.globalAlpha=1;
+
+      // sawtooth edge on outer diamond (top-right edge)
+      const teeth=4;
+      for(let t=0;t<teeth;t++){
+        const frac=t/teeth, frac2=(t+0.5)/teeth;
+        const ex1=s*0.7*frac, ey1=-s+(s*frac);
+        const ex2=s*0.7*frac2+s*0.06, ey2=-s+(s*frac2);
+        const ex3=s*0.7*(frac+1/teeth), ey3=-s+(s*(frac+1/teeth));
+        ctx.beginPath(); ctx.moveTo(ex1,ey1); ctx.lineTo(ex2-s*0.08,ey2-s*0.06);
+        ctx.lineTo(ex3,ey3); ctx.globalAlpha=0.45; ctx.stroke(); ctx.globalAlpha=1;
+      }
+
+      // centre dot
+      ctx.beginPath(); ctx.arc(0,0,s*0.09,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+
+  // TW-2. 排灣族百步蛇紋 Paiwan Serpent
+  // 百步蛇菱背鱗紋：連續菱形脊椎鏈 + 兩側三角鱗
+  {
+    id: 'tw_paiwan',
+    name: '百步蛇紋 Paiwan',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // spine diamonds chain (3 diamonds vertically)
+      const dh=s*0.55, dw=s*0.32;
+      [-s*0.55, 0, s*0.55].forEach((cy2,i)=>{
+        ctx.beginPath();
+        ctx.moveTo(0,cy2-dh*0.45); ctx.lineTo(dw,cy2); ctx.lineTo(0,cy2+dh*0.45); ctx.lineTo(-dw,cy2);
+        ctx.closePath();
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+        // inner dot
+        ctx.beginPath(); ctx.arc(0,cy2,s*0.07,0,Math.PI*2);
+        ctx.fillStyle=stroke; ctx.fill();
+      });
+
+      // side scale triangles (left and right of middle diamond)
+      [[-dw,0],[dw,0]].forEach(([tx,ty])=>{
+        const dir=tx<0?-1:1;
+        ctx.beginPath();
+        ctx.moveTo(tx,ty-dh*0.35);
+        ctx.lineTo(tx+dir*s*0.32,ty);
+        ctx.lineTo(tx,ty+dh*0.35);
+        ctx.closePath();
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+        ctx.globalAlpha=0.65; ctx.stroke(); ctx.globalAlpha=1;
+      });
+
+      // connecting lines between diamonds
+      ctx.globalAlpha=0.4;
+      ctx.beginPath(); ctx.moveTo(0,-s*0.1); ctx.lineTo(0,-s*0.55+dh*0.45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,s*0.1); ctx.lineTo(0,s*0.55-dh*0.45); ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // TW-3. 阿美族太陽紋 Amis Sun
+  // 阿美族陶器與刺繡常見：八芒太陽 + 放射鋸齒 + 環形點列
+  {
+    id: 'tw_amis',
+    name: '阿美太陽 Amis',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const R=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round';
+
+      if(fillOn){ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fillStyle=fill; ctx.fill();}
+
+      // outer ring
+      ctx.beginPath(); ctx.arc(0,0,R*0.96,0,Math.PI*2); ctx.stroke();
+
+      // 8-point sawtooth star between R*0.96 and R*0.7
+      const pts=16;
+      ctx.beginPath();
+      for(let i=0;i<pts;i++){
+        const a=i*Math.PI*2/pts - Math.PI/2;
+        const r2=i%2===0 ? R*0.96 : R*0.70;
+        i===0 ? ctx.moveTo(Math.cos(a)*r2,Math.sin(a)*r2) : ctx.lineTo(Math.cos(a)*r2,Math.sin(a)*r2);
+      }
+      ctx.closePath(); ctx.stroke();
+
+      // middle ring
+      ctx.beginPath(); ctx.arc(0,0,R*0.54,0,Math.PI*2); ctx.stroke();
+
+      // dot ring at R*0.62
+      const dotN=12;
+      for(let i=0;i<dotN;i++){
+        const a=i*Math.PI*2/dotN;
+        ctx.beginPath(); ctx.arc(Math.cos(a)*R*0.62, Math.sin(a)*R*0.62, R*0.04,0,Math.PI*2);
+        ctx.fillStyle=stroke; ctx.fill();
+      }
+
+      // inner 4-petal
+      for(let i=0;i<4;i++){
+        ctx.save(); ctx.rotate(i*Math.PI/2);
+        ctx.beginPath(); ctx.ellipse(0,-R*0.28,R*0.10,R*0.26,0,0,Math.PI*2);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.beginPath(); ctx.arc(0,0,R*0.10,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+
+  // TW-4. 賽夏族菱形交織 Saisiyat Weave
+  // 賽夏族臀鈴與服飾的斜格編織紋：交錯菱形網格 + 中心點
+  {
+    id: 'tw_saisiyat',
+    name: '賽夏編織 Saisiyat',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // background
+      if(fillOn){ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.fillStyle=fill; ctx.fill();}
+      ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.stroke();
+
+      // diagonal weave lines (two directions)
+      ctx.save(); ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.clip();
+      const step=s*0.38;
+      ctx.globalAlpha=0.55;
+      for(let i=-4;i<=4;i++){
+        ctx.beginPath(); ctx.moveTo(i*step-s*1.5,-s*1.5); ctx.lineTo(i*step+s*1.5,s*1.5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(i*step+s*1.5,-s*1.5); ctx.lineTo(i*step-s*1.5,s*1.5); ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+
+      // diamond nodes at intersections
+      const offsets=[[-s*0.38,-s*0.38],[-s*0.38,s*0.38],[s*0.38,-s*0.38],[s*0.38,s*0.38],[0,0]];
+      offsets.forEach(([ox,oy])=>{
+        const r2=s*0.13;
+        ctx.beginPath();
+        ctx.moveTo(ox,oy-r2); ctx.lineTo(ox+r2,oy); ctx.lineTo(ox,oy+r2); ctx.lineTo(ox-r2,oy);
+        ctx.closePath(); ctx.fillStyle=stroke; ctx.fill();
+      });
+      ctx.restore();
+    }
+  },
+
+  // TW-5. 鄒族羽冠紋 Tsou Feather Crown
+  // 鄒族戰士羽冠造型：扇形放射羽毛 + 圓弧頭帶 + 中心菱形
+  {
+    id: 'tw_tsou',
+    name: '鄒族羽冠 Tsou',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round'; ctx.lineCap='round';
+
+      // headband arc
+      ctx.beginPath(); ctx.arc(0,s*0.22,s*0.72,-Math.PI*1.1,-Math.PI*0.0);
+      if(fillOn){
+        ctx.save(); ctx.beginPath(); ctx.arc(0,s*0.22,s*0.72,0,Math.PI*2);
+        ctx.fillStyle=fill; ctx.fill(); ctx.restore();
+      }
+      ctx.stroke();
+
+      // feathers fanning upward (7 feathers)
+      const fCount=7;
+      for(let i=0;i<fCount;i++){
+        const t=i/(fCount-1); // 0..1
+        const angle=-Math.PI*0.9 + t*Math.PI*0.8; // arc across top
+        const baseX=Math.cos(angle)*s*0.72+0;
+        const baseY=Math.sin(angle)*s*0.72+s*0.22;
+        const featherLen=s*(0.55 + 0.20*(1-Math.abs(t-0.5)*2)); // centre feathers longest
+        const tipX=baseX + Math.cos(angle-Math.PI/2)*featherLen*0.0 + Math.cos(angle)*featherLen*0.5;
+        const tipY=baseY + Math.sin(angle)*featherLen*0.5 - featherLen*0.5;
+
+        // feather shaft
+        ctx.beginPath(); ctx.moveTo(baseX,baseY);
+        ctx.bezierCurveTo(
+          baseX+Math.cos(angle)*featherLen*0.3, baseY+Math.sin(angle)*featherLen*0.3-featherLen*0.3,
+          baseX+Math.cos(angle)*featherLen*0.1, baseY-featherLen*0.65,
+          baseX, baseY-featherLen
+        );
+        ctx.stroke();
+
+        // feather barbs (left and right)
+        const bCount=4;
+        for(let b=1;b<=bCount;b++){
+          const bt=b/(bCount+1);
+          const bx=baseX + (baseX - (baseX))*bt;
+          const by=baseY - featherLen*bt;
+          const blen=s*(0.09+0.05*(1-bt));
+          ctx.globalAlpha=0.45;
+          ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx-blen,by-blen*0.3); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+blen,by-blen*0.3); ctx.stroke();
+          ctx.globalAlpha=1;
+        }
+      }
+
+      // centre chest diamond
+      ctx.beginPath();
+      ctx.moveTo(0,s*0.05); ctx.lineTo(s*0.22,s*0.32); ctx.lineTo(0,s*0.58); ctx.lineTo(-s*0.22,s*0.32);
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,s*0.32,s*0.07,0,Math.PI*2); ctx.fillStyle=stroke; ctx.fill();
+      ctx.restore();
+    }
+  },
+
+  // TW-6. 魯凱族陶壺紋 Rukai Pottery
+  // 魯凱族陶壺造型：橢圓壺身 + 幾何裝飾帶 + 人型紋
+  {
+    id: 'tw_rukai',
+    name: '魯凱陶壺 Rukai',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round';
+
+      // jar body
+      ctx.beginPath();
+      ctx.ellipse(0,s*0.08,s*0.52,s*0.62,0,0,Math.PI*2);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // neck
+      ctx.beginPath();
+      ctx.moveTo(-s*0.22,-s*0.52);
+      ctx.bezierCurveTo(-s*0.26,-s*0.38,-s*0.52,-s*0.25,-s*0.52,s*0.08);
+      ctx.moveTo(s*0.22,-s*0.52);
+      ctx.bezierCurveTo(s*0.26,-s*0.38,s*0.52,-s*0.25,s*0.52,s*0.08);
+      ctx.stroke();
+
+      // mouth rim
+      ctx.beginPath(); ctx.ellipse(0,-s*0.52,s*0.22,s*0.07,0,0,Math.PI*2);
+      ctx.stroke();
+
+      // decorative band: zigzag around middle
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(0,s*0.08,s*0.52,s*0.62,0,0,Math.PI*2); ctx.clip();
+      const zN=10;
+      ctx.globalAlpha=0.5;
+      ctx.beginPath();
+      for(let i=0;i<=zN;i++){
+        const a=i*Math.PI*2/zN - Math.PI/2;
+        const r2=s*0.52;
+        const px=Math.cos(a)*r2, py=Math.sin(a)*r2*1.0+s*0.08;
+        const inset=s*(i%2===0?0.10:0.22);
+        const px2=Math.cos(a)*(r2-inset), py2=Math.sin(a)*(r2-inset)*1.0+s*0.08;
+        i===0 ? ctx.moveTo(px2,py2) : ctx.lineTo(px2,py2);
+      }
+      ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.restore();
+
+      // human figure on jar (stick figure simplified)
+      ctx.globalAlpha=0.7;
+      ctx.beginPath(); ctx.arc(0,-s*0.10,s*0.09,0,Math.PI*2); ctx.stroke(); // head
+      ctx.beginPath(); ctx.moveTo(0,-s*0.01); ctx.lineTo(0,s*0.28); ctx.stroke(); // body
+      ctx.beginPath(); ctx.moveTo(-s*0.18,s*0.08); ctx.lineTo(s*0.18,s*0.08); ctx.stroke(); // arms
+      ctx.beginPath(); ctx.moveTo(0,s*0.28); ctx.lineTo(-s*0.15,s*0.52); ctx.stroke(); // left leg
+      ctx.beginPath(); ctx.moveTo(0,s*0.28); ctx.lineTo(s*0.15,s*0.52); ctx.stroke(); // right leg
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // ── 方巾補丁藝術 BANDANA PATCHWORK ────────────────────────
+  // ══════════════════════════════════════════════════════════
+
+  // BP-1. 佩斯利 Paisley — 腰果花/淚滴花，方巾核心花紋
+  // 帶內層渦旋花紋的有機淚滴造型
+  {
+    id: 'paisley',
+    name: '佩斯利 Paisley',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s = size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round'; ctx.lineCap='round';
+
+      // ── outer teardrop body ──
+      ctx.beginPath();
+      ctx.moveTo(0, s*0.9);
+      ctx.bezierCurveTo( s*0.55, s*0.9,  s*0.72, s*0.3,  s*0.55,-s*0.05);
+      ctx.bezierCurveTo( s*0.38,-s*0.42, s*0.12,-s*0.62,  0,     -s*0.72);
+      ctx.bezierCurveTo(-s*0.22,-s*0.55,-s*0.42,-s*0.18, -s*0.28, s*0.28);
+      ctx.bezierCurveTo(-s*0.18, s*0.60,  s*0.0,  s*0.82,  0,      s*0.9);
+      ctx.closePath();
+      if(fillOn){ ctx.fillStyle=fill; ctx.fill(); }
+      ctx.stroke();
+
+      // ── inner curl / spiral ──
+      ctx.beginPath();
+      ctx.moveTo(0, s*0.05);
+      ctx.bezierCurveTo( s*0.28, s*0.05,  s*0.42,-s*0.22, s*0.28,-s*0.40);
+      ctx.bezierCurveTo( s*0.10,-s*0.56, -s*0.12,-s*0.42,  0,     -s*0.28);
+      ctx.bezierCurveTo( s*0.10,-s*0.14,  s*0.24, s*0.0,   s*0.08, s*0.12);
+      ctx.bezierCurveTo(-s*0.06, s*0.24, -s*0.16, s*0.12,  0,      s*0.05);
+      ctx.stroke();
+
+      // ── tip florette (small flower at top) ──
+      const tipY=-s*0.72;
+      for(let i=0;i<5;i++){
+        ctx.save(); ctx.translate(0,tipY); ctx.rotate(i*Math.PI*2/5);
+        ctx.beginPath(); ctx.ellipse(0,-s*0.08,s*0.04,s*0.08,0,0,Math.PI*2);
+        ctx.stroke(); ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(0,tipY,s*0.04,0,Math.PI*2);
+      ctx.fillStyle=stroke; ctx.fill();
+
+      // ── dot scatter inside body ──
+      ctx.globalAlpha=0.5;
+      [[s*0.18,s*0.45],[s*0.30,s*0.18],[-s*0.08,s*0.62],[s*0.10,-s*0.10]].forEach(([dx,dy])=>{
+        ctx.beginPath(); ctx.arc(dx,dy,s*0.04,0,Math.PI*2);
+        ctx.fillStyle=stroke; ctx.fill();
+      });
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // BP-2. 棋盤拼塊 Bandana Block — 大色塊棋盤格，美西復古方巾被
+  {
+    id: 'bandanablock',
+    name: '拼布方塊 BandanaBlock',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5, n=4; // 4×4 sub-grid
+      const cs=size/n;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      for(let r=0;r<n;r++){
+        for(let c=0;c<n;c++){
+          const bx=-s+c*cs, by=-s+r*cs;
+          ctx.beginPath(); ctx.rect(bx,by,cs,cs);
+          if(fillOn){
+            // alternate block tones
+            const dark=(r+c)%2===0;
+            ctx.fillStyle = dark ? stroke : fill;
+          }
+          ctx.fill(); ctx.stroke();
+
+          // mini bandana corner accent on dark blocks
+          if((r+c)%2===0){
+            const cx2=bx+cs*0.5, cy2=by+cs*0.5;
+            ctx.beginPath(); ctx.arc(cx2,cy2,cs*0.28,0,Math.PI*2);
+            ctx.strokeStyle=fill; ctx.globalAlpha=0.4; ctx.stroke();
+            ctx.strokeStyle=stroke; ctx.globalAlpha=1;
+          }
+        }
+      }
+
+      // outer border
+      ctx.beginPath(); ctx.rect(-s,-s,size,size);
+      ctx.strokeStyle=stroke; ctx.lineWidth=(ctx.lineWidth||1)*1.4; ctx.stroke();
+      ctx.restore();
+    }
+  },
+
+  // BP-3. 俄亥俄之星 Ohio Star — 傳統拼布被星形圖案
+  // 中心方塊 + 四角半星三角 + 四邊飛鵝三角
+  {
+    id: 'ohiostar',
+    name: '俄亥俄星 OhioStar',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5, u=size/3; // unit = 1/3 of size
+
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // Draw 3×3 grid of patches
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          const bx=-s+c*u, by=-s+r*u;
+          const isCorner=(r===0||r===2)&&(c===0||c===2);
+          const isEdge = !isCorner && (r===0||r===2||c===0||c===2);
+          const isCentre= r===1&&c===1;
+
+          if(isCentre){
+            // solid centre square
+            ctx.beginPath(); ctx.rect(bx,by,u,u);
+            if(fillOn){ctx.fillStyle=stroke; ctx.fill();}
+            ctx.stroke();
+          } else if(isCorner){
+            // plain corner patch
+            ctx.beginPath(); ctx.rect(bx,by,u,u);
+            if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+            ctx.stroke();
+          } else {
+            // hourglass / flying-geese patch: two triangles
+            ctx.beginPath(); ctx.rect(bx,by,u,u);
+            if(fillOn){ctx.fillStyle=fill; ctx.fill();}
+            ctx.stroke();
+            // diagonal triangle (pointing inward)
+            const mx=bx+u*0.5, my=by+u*0.5;
+            let tx1,ty1,tx2,ty2,tx3,ty3;
+            if(r===0){      tx1=bx;    ty1=by+u; tx2=bx+u; ty2=by+u; tx3=mx; ty3=by; }
+            else if(r===2){ tx1=bx;    ty1=by;   tx2=bx+u; ty2=by;   tx3=mx; ty3=by+u; }
+            else if(c===0){ tx1=bx+u;  ty1=by;   tx2=bx+u; ty2=by+u; tx3=bx; ty3=my; }
+            else {           tx1=bx;    ty1=by;   tx2=bx;   ty2=by+u; tx3=bx+u; ty3=my; }
+            ctx.beginPath(); ctx.moveTo(tx1,ty1); ctx.lineTo(tx2,ty2); ctx.lineTo(tx3,ty3);
+            ctx.closePath();
+            if(fillOn){ctx.fillStyle=stroke; ctx.fill();}
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+  },
+
+  // BP-4. 鋸齒星 Sawtooth Star — 帶鋸齒尖角的拼布明星圖案
+  {
+    id: 'sawtoothstar',
+    name: '鋸齒星 SawtoothStar',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // outer bounding square fill
+      if(fillOn){
+        ctx.beginPath(); ctx.rect(-s,-s,size,size);
+        ctx.fillStyle=fill; ctx.fill();
+      }
+      ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.stroke();
+
+      // centre square (45° rotated)
+      const cr=s*0.32;
+      ctx.save(); ctx.rotate(Math.PI/4);
+      ctx.beginPath(); ctx.rect(-cr,-cr,cr*2,cr*2);
+      if(fillOn){ctx.fillStyle=stroke; ctx.fill();} ctx.stroke();
+      ctx.restore();
+
+      // 8 sawtooth points around centre
+      const pts=8, R=s*0.9, r2=s*0.42;
+      ctx.beginPath();
+      for(let i=0;i<pts;i++){
+        const a0=(i/pts)*Math.PI*2 - Math.PI/2;
+        const a1=((i+0.5)/pts)*Math.PI*2 - Math.PI/2;
+        const a2=((i+1)/pts)*Math.PI*2 - Math.PI/2;
+        if(i===0) ctx.moveTo(Math.cos(a0)*r2, Math.sin(a0)*r2);
+        ctx.lineTo(Math.cos(a1)*R,  Math.sin(a1)*R);
+        ctx.lineTo(Math.cos(a2)*r2, Math.sin(a2)*r2);
+      }
+      ctx.closePath();
+      if(fillOn){ctx.fillStyle=stroke; ctx.fill();} ctx.stroke();
+
+      // small squares at 4 cardinal corners between star points
+      [0,1,2,3].forEach(i=>{
+        const a=(i/4)*Math.PI*2 - Math.PI/4*3;
+        const cx2=Math.cos(a)*s*0.72, cy2=Math.sin(a)*s*0.72;
+        ctx.save(); ctx.translate(cx2,cy2); ctx.rotate(a+Math.PI/4);
+        ctx.beginPath(); ctx.rect(-s*0.12,-s*0.12,s*0.24,s*0.24);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+        ctx.restore();
+      });
+
+      ctx.restore();
+    }
+  },
+
+  // BP-5. 刺子繡 Sashiko — 日式白線縫紋，Boro/Kapital 工裝美學
+  // 在方塊底色上疊加規律幾何縫線，模擬傳統手縫針跡
+  {
+    id: 'sashiko',
+    name: '刺子繡 Sashiko',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='round'; ctx.lineCap='round';
+
+      // background patch
+      ctx.beginPath(); ctx.rect(-s,-s,size,size);
+      if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+
+      // ── Sashiko pattern: overlapping hexagonal/wave motif ──
+      // We use a classic "waves" (seigaiha) stitch pattern
+      ctx.save();
+      ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.clip();
+
+      const step=size/4;
+      // horizontal stitch rows
+      ctx.globalAlpha=0.75;
+      for(let row=-1;row<=4;row++){
+        const ry=-s+row*step;
+        // dashed stitch line simulation: alternate segments
+        ctx.beginPath();
+        const segs=8;
+        for(let sg=0;sg<segs;sg++){
+          const x1=-s+(sg/segs)*size;
+          const x2=-s+((sg+0.55)/segs)*size;
+          ctx.moveTo(x1,ry); ctx.lineTo(x2,ry);
+        }
+        ctx.stroke();
+      }
+      // vertical stitch rows
+      for(let col=-1;col<=4;col++){
+        const cx2=-s+col*step;
+        ctx.beginPath();
+        const segs=8;
+        for(let sg=0;sg<segs;sg++){
+          const y1=-s+(sg/segs)*size;
+          const y2=-s+((sg+0.55)/segs)*size;
+          ctx.moveTo(cx2,y1); ctx.lineTo(cx2,y2);
+        }
+        ctx.stroke();
+      }
+
+      // diagonal cross stitch at each grid intersection
+      const xs2=s*0.08;
+      for(let r=0;r<=4;r++){
+        for(let c=0;c<=4;c++){
+          const px=-s+c*step, py=-s+r*step;
+          ctx.beginPath();
+          ctx.moveTo(px-xs2,py-xs2); ctx.lineTo(px+xs2,py+xs2);
+          ctx.moveTo(px+xs2,py-xs2); ctx.lineTo(px-xs2,py+xs2);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
+
+      // outer double border (patch seam look)
+      ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.stroke();
+      const seam=size*0.06;
+      ctx.globalAlpha=0.35;
+      ctx.beginPath(); ctx.rect(-s+seam,-s+seam,size-seam*2,size-seam*2); ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
+  },
+
+  // BP-6. 方巾邊框紋 Bandana Border — 方巾四邊的幾何邊飾紋路
+  // 連續菱形鏈 + 鋸齒邊，模擬傳統印花方巾邊框
+  {
+    id: 'bandanaborder',
+    name: '方巾邊框 BandanaBorder',
+    draw(ctx, x, y, size, rot, stroke, fill, fillOn) {
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+      const s=size*0.5;
+      ctx.strokeStyle=stroke; ctx.lineJoin='miter';
+
+      // background
+      if(fillOn){ ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.fillStyle=fill; ctx.fill(); }
+
+      // outer frame
+      ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.stroke();
+
+      // sawtooth outer border
+      const teeth=6;
+      const toothSize=size/teeth;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(-s,-s,size,size); ctx.clip();
+
+      // top and bottom sawtooth
+      ['top','bottom'].forEach(side=>{
+        const yBase = side==='top' ? -s : s;
+        const yTip  = side==='top' ? -s+toothSize*0.5 : s-toothSize*0.5;
+        ctx.beginPath();
+        ctx.moveTo(-s, yBase);
+        for(let t=0;t<=teeth;t++){
+          const tx=-s+t*toothSize;
+          ctx.lineTo(tx, yBase);
+          if(t<teeth) ctx.lineTo(tx+toothSize*0.5, yTip);
+        }
+        ctx.globalAlpha=0.5; ctx.stroke(); ctx.globalAlpha=1;
+      });
+      // left and right sawtooth
+      ['left','right'].forEach(side=>{
+        const xBase = side==='left' ? -s : s;
+        const xTip  = side==='left' ? -s+toothSize*0.5 : s-toothSize*0.5;
+        ctx.beginPath();
+        ctx.moveTo(xBase,-s);
+        for(let t=0;t<=teeth;t++){
+          const ty=-s+t*toothSize;
+          ctx.lineTo(xBase,ty);
+          if(t<teeth) ctx.lineTo(xTip,ty+toothSize*0.5);
+        }
+        ctx.globalAlpha=0.5; ctx.stroke(); ctx.globalAlpha=1;
+      });
+      ctx.restore();
+
+      // inner diamond chain (horizontal centre stripe)
+      const n=5, dw=size/(n*2);
+      for(let i=0;i<n;i++){
+        const dx=-s+(i*2+1)*dw;
+        // diamond
+        ctx.beginPath();
+        ctx.moveTo(dx,-dw*0.7); ctx.lineTo(dx+dw*0.7,0); ctx.lineTo(dx,dw*0.7); ctx.lineTo(dx-dw*0.7,0);
+        ctx.closePath();
+        if(fillOn){ctx.fillStyle=stroke; ctx.fill();}
+        else ctx.stroke();
+        // connector
+        if(i<n-1){
+          ctx.beginPath(); ctx.moveTo(dx+dw*0.7,0); ctx.lineTo(dx+dw*1.3,0);
+          ctx.globalAlpha=0.4; ctx.stroke(); ctx.globalAlpha=1;
+        }
+      }
+
+      // four corner ornaments
+      const co=s*0.62;
+      [[-co,-co],[-co,co],[co,-co],[co,co]].forEach(([cx2,cy2])=>{
+        ctx.beginPath(); ctx.arc(cx2,cy2,s*0.10,0,Math.PI*2);
+        if(fillOn){ctx.fillStyle=fill; ctx.fill();} ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx2,cy2,s*0.04,0,Math.PI*2);
+        ctx.fillStyle=stroke; ctx.fill();
+      });
+
+      ctx.restore();
+    }
+  }
+];
+
+// ═══════════════════════════════════════════
+// PERLIN NOISE (classic 2D improved)
+// ═══════════════════════════════════════════
+const PerlinNoise = (() => {
+  const p = new Uint8Array(256);
+  for(let i=0;i<256;i++) p[i]=i;
+  let seed=42;
+  const rng=()=>{ seed=(seed*1664525+1013904223)&0xffffffff; return (seed>>>0)/0xffffffff; };
+  for(let i=255;i>0;i--){ const j=Math.floor(rng()*(i+1)); [p[i],p[j]]=[p[j],p[i]]; }
+  const perm=new Uint8Array(512); for(let i=0;i<512;i++) perm[i]=p[i&255];
+  const fade=t=>t*t*t*(t*(t*6-15)+10);
+  const lerp=(a,b,t)=>a+t*(b-a);
+  const grad=(h,x,y)=>{ const u=h<2?x:y,v=h<2?y:x; return(h&1?-u:u)+(h&2?-v:v); };
+  const noise=(x,y)=>{
+    const X=Math.floor(x)&255, Y=Math.floor(y)&255;
+    const xf=x-Math.floor(x), yf=y-Math.floor(y);
+    const u=fade(xf), v=fade(yf);
+    const aa=perm[perm[X]+Y],ab=perm[perm[X]+Y+1],ba=perm[perm[X+1]+Y],bb=perm[perm[X+1]+Y+1];
+    return lerp(lerp(grad(aa,xf,yf),grad(ba,xf-1,yf),u),lerp(grad(ab,xf,yf-1),grad(bb,xf-1,yf-1),u),v);
+  };
+  const octave=(x,y,octs=4,persist=0.5,lacun=2)=>{
+    let val=0,amp=1,freq=1,max=0;
+    for(let o=0;o<octs;o++){val+=noise(x*freq,y*freq)*amp;max+=amp;amp*=persist;freq*=lacun;}
+    return val/max;
+  };
+  return {noise,octave};
+})();
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+const GRID = 30;
+// dotMatrix: each cell stores 0 (empty) or regionId (1-based)
+let dotMatrix = Array.from({length:GRID},()=>Array(GRID).fill(0));
+let matrixMode = 'draw'; // draw | erase | region | zone
+let isMouseDown = false;
+let regionStart = null;
+
+// ── REGION SYSTEM ──────────────────────────
+const REGION_PALETTE = [
+  '#d45f3c','#4a90c4','#5aaa72','#c4a020','#9b4ec4',
+  '#2aa8a0','#c45080','#7a8c30','#e07830','#5060c8'
+];
+
+// Default region config
+function makeRegion(id, colorIdx){
+  return {
+    id,
+    name: `區域 ${id}`,
+    color: REGION_PALETTE[colorIdx % REGION_PALETTE.length],
+    elementId: ELEMENTS[colorIdx % ELEMENTS.length].id,
+    stroke: '#1a1410', fill: '#f5f0e8', fillOn: true,
+    elemSize: 20, elemRot: 0, randomRot: true, randomSize: false,
+    noiseOn: true, noiseStr: 30, noiseScl: 6,
+    pressOn: true, pressRng: 50, pressDir: 'radial',
+  };
+}
+
+let regions = [ makeRegion(1, 0) ]; // start with one region
+let activeRegionId = 1;
+let regionIdCounter = 1;
+
+function getActiveRegion(){ return regions.find(r=>r.id===activeRegionId); }
+
+// ── SYNC: UI → active region ──
+function saveActiveRegion(){
+  const reg = getActiveRegion(); if(!reg) return;
+  reg.elementId   = document.querySelector('.element-btn.active')?.dataset?.id || reg.elementId;
+  reg.stroke      = document.getElementById('strokeColor').value;
+  reg.fill        = document.getElementById('fillColor').value;
+  reg.fillOn      = document.getElementById('fillEnabled').checked;
+  reg.elemSize    = parseInt(document.getElementById('elemSize').value);
+  reg.elemRot     = parseInt(document.getElementById('elemRot').value);
+  reg.randomRot   = document.getElementById('randomRot').checked;
+  reg.randomSize  = document.getElementById('randomSize').checked;
+  reg.noiseOn     = document.getElementById('noiseEnabled').checked;
+  reg.noiseStr    = parseInt(document.getElementById('noiseStrength').value);
+  reg.noiseScl    = parseFloat(document.getElementById('noiseScale').value);
+  reg.pressOn     = document.getElementById('pressureEnabled').checked;
+  reg.pressRng    = parseInt(document.getElementById('pressureRange').value);
+  reg.pressDir    = document.getElementById('pressureDir').value;
+}
+
+// ── SYNC: active region → UI ──
+function loadActiveRegion(){
+  const reg = getActiveRegion(); if(!reg) return;
+  document.getElementById('strokeColor').value = reg.stroke;
+  document.getElementById('fillColor').value   = reg.fill;
+  document.getElementById('fillEnabled').checked = reg.fillOn;
+  document.getElementById('elemSize').value    = reg.elemSize;
+  document.getElementById('elemSizeVal').textContent = reg.elemSize;
+  document.getElementById('elemRot').value     = reg.elemRot;
+  document.getElementById('elemRotVal').textContent  = reg.elemRot+'°';
+  document.getElementById('randomRot').checked  = reg.randomRot;
+  document.getElementById('randomSize').checked = reg.randomSize;
+  document.getElementById('noiseEnabled').checked    = reg.noiseOn;
+  document.getElementById('noiseStrength').value     = reg.noiseStr;
+  document.getElementById('noiseStrengthVal').textContent = reg.noiseStr;
+  document.getElementById('noiseScale').value        = reg.noiseScl;
+  document.getElementById('noiseScaleVal').textContent    = reg.noiseScl;
+  document.getElementById('pressureEnabled').checked = reg.pressOn;
+  document.getElementById('pressureRange').value     = reg.pressRng;
+  document.getElementById('pressureRangeVal').textContent = reg.pressRng;
+  document.getElementById('pressureDir').value       = reg.pressDir;
+  // update element list active state
+  document.querySelectorAll('.element-btn').forEach(b=>
+    b.classList.toggle('active', b.dataset.id===reg.elementId));
+}
+
+// ── REGION LIST UI ──
+function renderRegionList(){
+  const list = document.getElementById('regionList');
+  list.innerHTML='';
+  regions.forEach(reg=>{
+    // count dots belonging to this region
+    let cnt=0;
+    dotMatrix.forEach(row=>row.forEach(v=>{ if(v===reg.id) cnt++; }));
+
+    const chip = document.createElement('div');
+    chip.className='region-chip'+(reg.id===activeRegionId?' active-chip':'');
+    chip.innerHTML=`
+      <div class="region-swatch" style="background:${reg.color};"></div>
+      <span style="flex:1;">${reg.name}</span>
+      <span class="region-count">${cnt}pts</span>
+      ${regions.length>1?`<span class="region-del" title="刪除">✕</span>`:''}
+    `;
+    chip.querySelector('.region-swatch').addEventListener('click', e=>{ e.stopPropagation(); renameOrColorRegion(reg); });
+    chip.addEventListener('click', ()=>{ saveActiveRegion(); activeRegionId=reg.id; loadActiveRegion(); renderRegionList(); });
+    const del = chip.querySelector('.region-del');
+    if(del) del.addEventListener('click', e=>{ e.stopPropagation(); deleteRegion(reg.id); });
+    list.appendChild(chip);
+  });
+
+  // show/hide region settings panel
+  const hasRegions = regions.length>0;
+  document.getElementById('activeRegionPanel').style.display = hasRegions?'':'none';
+  if(hasRegions){
+    const reg=getActiveRegion();
+    document.getElementById('activeRegionLabel').textContent = reg?`設定：${reg.name}`:'區域設定';
+  }
+}
+
+function addRegion(){
+  saveActiveRegion();
+  regionIdCounter++;
+  const newReg = makeRegion(regionIdCounter, regions.length);
+  regions.push(newReg);
+  activeRegionId = newReg.id;
+  renderRegionList();
+  loadActiveRegion();
+  buildElementList();
+}
+
+function deleteRegion(id){
+  if(regions.length<=1){ alert('至少需要保留一個區域'); return; }
+  // clear that region's dots
+  dotMatrix.forEach(row=>row.forEach((v,c,arr)=>{ if(v===id) arr[c]=0; }));
+  regions = regions.filter(r=>r.id!==id);
+  if(activeRegionId===id) activeRegionId = regions[0].id;
+  renderRegionList(); loadActiveRegion(); buildElementList(); drawMatrix();
+}
+
+function renameOrColorRegion(reg){
+  const name = prompt('區域名稱：', reg.name);
+  if(name!==null && name.trim()) reg.name=name.trim();
+  renderRegionList();
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', ()=>{
+  buildElementList();
+  renderRegionList();
+  loadActiveRegion();
+  setupMatrix();
+  setupSliders();
+  renderOutput();
+});
+
+function buildElementList(){
+  const list = document.getElementById('elementList');
+  if(!list) return;
+  list.innerHTML = '';
+  const reg = getActiveRegion();
+  ELEMENTS.forEach(el=>{
+    const btn = document.createElement('button');
+    btn.className = 'element-btn' + (reg && el.id===reg.elementId?' active':'');
+    btn.dataset.id = el.id;
+    const oc = document.createElement('canvas'); oc.width=32; oc.height=32;
+    const oc2d = oc.getContext('2d');
+    oc2d.lineWidth = 1.2;
+    el.draw(oc2d, 16, 16, 24, 0, '#3d2b1f', '#f5e8d0', true);
+    const img = document.createElement('img');
+    img.src = oc.toDataURL();
+    img.style.cssText='width:32px;height:32px;';
+    btn.appendChild(img);
+    btn.appendChild(document.createTextNode(' '+el.name));
+    btn.onclick = ()=>{
+      const r = getActiveRegion(); if(r) r.elementId = el.id;
+      document.querySelectorAll('.element-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    list.appendChild(btn);
+  });
+}
+
+// ═══════════════════════════════════════════
+// DOT MATRIX CANVAS
+// ═══════════════════════════════════════════
+const matCanvas = document.getElementById('dotMatrix');
+const matCtx = matCanvas.getContext('2d');
+const MAT_SIZE = 300;
+const CELL = MAT_SIZE / GRID;
+
+function setupMatrix(){
+  matCanvas.addEventListener('mousedown', e=>{ isMouseDown=true; handleMatrixMouse(e); });
+  matCanvas.addEventListener('mousemove', e=>{ if(isMouseDown) handleMatrixMouse(e); });
+  matCanvas.addEventListener('mouseup', ()=>{ isMouseDown=false; regionStart=null; renderRegionList(); });
+  matCanvas.addEventListener('mouseleave',()=>{ isMouseDown=false; regionStart=null; renderRegionList(); });
+  matCanvas.addEventListener('touchstart',e=>{e.preventDefault();isMouseDown=true;handleMatrixTouch(e);},{passive:false});
+  matCanvas.addEventListener('touchmove',e=>{e.preventDefault();if(isMouseDown)handleMatrixTouch(e);},{passive:false});
+  matCanvas.addEventListener('touchend',()=>{isMouseDown=false;regionStart=null;renderRegionList();});
+  drawMatrix();
+}
+
+function handleMatrixMouse(e){
+  const rect = matCanvas.getBoundingClientRect();
+  const scale = MAT_SIZE/rect.width;
+  const mx = (e.clientX - rect.left)*scale;
+  const my = (e.clientY - rect.top)*scale;
+  const col = Math.floor(mx/CELL);
+  const row = Math.floor(my/CELL);
+  if(col<0||col>=GRID||row<0||row>=GRID) return;
+
+  if(matrixMode==='region'){
+    // rect selection: two clicks define corners → fill with activeRegionId
+    if(!regionStart){ regionStart={col,row}; }
+    else {
+      const c0=Math.min(regionStart.col,col), c1=Math.max(regionStart.col,col);
+      const r0=Math.min(regionStart.row,row), r1=Math.max(regionStart.row,row);
+      for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) dotMatrix[r][c]=activeRegionId;
+      regionStart=null;
+    }
+  } else if(matrixMode==='zone'){
+    // brush paint with active region
+    dotMatrix[row][col] = activeRegionId;
+  } else if(matrixMode==='draw'){
+    dotMatrix[row][col] = activeRegionId;
+  } else if(matrixMode==='erase'){
+    dotMatrix[row][col] = 0;
+  }
+  drawMatrix();
+  updateMatrixInfo();
+}
+
+function handleMatrixTouch(e){
+  const t = e.touches[0];
+  handleMatrixMouse({clientX:t.clientX, clientY:t.clientY});
+}
+
+function drawMatrix(){
+  matCtx.clearRect(0,0,MAT_SIZE,MAT_SIZE);
+  matCtx.fillStyle='#faf6ee';
+  matCtx.fillRect(0,0,MAT_SIZE,MAT_SIZE);
+
+  // draw region background fills (faint)
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<GRID;c++){
+      const v=dotMatrix[r][c];
+      if(v>0){
+        const reg = regions.find(rg=>rg.id===v);
+        if(reg){
+          matCtx.fillStyle = reg.color+'28'; // very faint
+          matCtx.fillRect(c*CELL, r*CELL, CELL, CELL);
+        }
+      }
+    }
+  }
+
+  // grid lines
+  matCtx.strokeStyle='rgba(180,160,130,0.2)';
+  matCtx.lineWidth=0.4;
+  for(let i=0;i<=GRID;i++){
+    matCtx.beginPath(); matCtx.moveTo(i*CELL,0); matCtx.lineTo(i*CELL,MAT_SIZE); matCtx.stroke();
+    matCtx.beginPath(); matCtx.moveTo(0,i*CELL); matCtx.lineTo(MAT_SIZE,i*CELL); matCtx.stroke();
+  }
+
+  // dots
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<GRID;c++){
+      const cx=c*CELL+CELL/2, cy=r*CELL+CELL/2;
+      const v=dotMatrix[r][c];
+      if(v>0){
+        const reg = regions.find(rg=>rg.id===v);
+        const col = reg ? reg.color : '#8b4513';
+        // coloured dot
+        matCtx.beginPath(); matCtx.arc(cx,cy,CELL*0.36,0,Math.PI*2);
+        matCtx.fillStyle=col; matCtx.fill();
+        // tiny element silhouette for active region
+        if(reg && reg.id===activeRegionId && CELL>7){
+          const el=ELEMENTS.find(e=>e.id===reg.elementId);
+          if(el){
+            matCtx.save(); matCtx.lineWidth=0.5;
+            el.draw(matCtx,cx,cy,CELL*0.72,0,'rgba(255,255,255,0.7)','rgba(255,255,255,0.3)',false);
+            matCtx.restore();
+          }
+        }
+      } else {
+        matCtx.beginPath(); matCtx.arc(cx,cy,1.3,0,Math.PI*2);
+        matCtx.fillStyle='rgba(139,69,19,0.18)'; matCtx.fill();
+      }
+    }
+  }
+
+  // highlight active region dots with a ring
+  const activeReg = getActiveRegion();
+  if(activeReg){
+    matCtx.strokeStyle = activeReg.color;
+    matCtx.lineWidth = 1.2;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      if(dotMatrix[r][c]===activeReg.id){
+        const cx=c*CELL+CELL/2, cy=r*CELL+CELL/2;
+        matCtx.beginPath(); matCtx.arc(cx,cy,CELL*0.44,0,Math.PI*2);
+        matCtx.stroke();
+      }
+    }
+  }
+
+  // regionStart preview
+  if(regionStart && matrixMode==='region'){
+    const cx=regionStart.col*CELL+CELL/2, cy=regionStart.row*CELL+CELL/2;
+    matCtx.beginPath(); matCtx.arc(cx,cy,CELL*0.3,0,Math.PI*2);
+    matCtx.fillStyle='rgba(201,168,76,0.8)'; matCtx.fill();
+  }
+}
+
+function updateMatrixInfo(){
+  let cnt=0;
+  dotMatrix.forEach(row=>row.forEach(v=>{ if(v>0) cnt++; }));
+  document.getElementById('matrixInfo').textContent = `${cnt} 個點已選取`;
+}
+
+function setMatrixMode(mode){
+  matrixMode=mode;
+  ['drawMode','eraseMode','regionMode','zoneMode'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.remove('active');
+  });
+  const modeMap={draw:'drawMode',erase:'eraseMode',region:'regionMode',zone:'zoneMode'};
+  const btn=document.getElementById(modeMap[mode]);
+  if(btn) btn.classList.add('active');
+  matCanvas.style.cursor = mode==='erase'?'cell':'crosshair';
+}
+
+function clearMatrix(){
+  dotMatrix = Array.from({length:GRID},()=>Array(GRID).fill(0));
+  drawMatrix(); updateMatrixInfo(); renderRegionList();
+}
+
+function fillAllMatrix(){
+  // Count empty cells first
+  let emptyCells = 0;
+  for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++) if(!dotMatrix[r][c]) emptyCells++;
+
+  if(emptyCells === 0){
+    // Nothing to fill
+    return;
+  }
+
+  // Check if any cells already exist — if so, create a new region for the fill
+  const hasExisting = dotMatrix.some(row=>row.some(v=>v>0));
+  let fillId;
+  if(hasExisting){
+    // Auto-create a new region so the fill is independent
+    saveActiveRegion();
+    addRegion();            // sets activeRegionId to new region
+    fillId = activeRegionId;
+  } else {
+    fillId = activeRegionId;
+  }
+
+  // Fill only the empty (0) cells
+  for(let r=0;r<GRID;r++)
+    for(let c=0;c<GRID;c++)
+      if(!dotMatrix[r][c]) dotMatrix[r][c] = fillId;
+
+  drawMatrix(); updateMatrixInfo(); renderRegionList();
+}
+
+// ═══════════════════════════════════════════
+// OVERLAY MODE  ('replace' | 'add' | 'subtract')
+// ═══════════════════════════════════════════
+let overlayMode = 'replace';
+let layerHistory = [];
+
+function setOverlayMode(mode){
+  overlayMode = mode;
+  ['overlayReplace','overlayAdd','overlaySubtract'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.remove('active');
+  });
+  const map={replace:'overlayReplace',add:'overlayAdd',subtract:'overlaySubtract'};
+  const btn=document.getElementById(map[mode]);
+  if(btn) btn.classList.add('active');
+
+  const applyBtn = document.getElementById('applyPresetBtn');
+  if(mode==='add'){
+    applyBtn.textContent='疊加套用 ＋';
+    applyBtn.style.cssText='flex:1;text-align:center;color:var(--accent);border-color:var(--gold);';
+  } else if(mode==='subtract'){
+    applyBtn.textContent='減去套用 －';
+    applyBtn.style.cssText='flex:1;text-align:center;color:#c03020;border-color:#c03020;';
+  } else {
+    applyBtn.textContent='套用';
+    applyBtn.style.cssText='flex:1;text-align:center;';
+  }
+}
+
+function pushLayerHistory(type, mode){
+  const reg = getActiveRegion();
+  const label = document.querySelector(`#presetSelect option[value="${type}"]`)?.textContent || type;
+  const opSymbol = mode==='add' ? '＋' : mode==='subtract' ? '－' : '↺';
+  const opColor  = mode==='add' ? '#4a90c4' : mode==='subtract' ? '#c03020' : '#9a8a7a';
+  layerHistory.push({ label, opSymbol, opColor, regionId: reg?.id, regionColor: reg?.color, regionName: reg?.name });
+  renderLayerStack();
+}
+
+function renderLayerStack(){
+  const stack = document.getElementById('layerStack');
+  const list  = document.getElementById('layerList');
+  stack.style.display = layerHistory.length ? '' : 'none';
+  list.innerHTML = '';
+  layerHistory.forEach((item)=>{
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:5px;font-size:0.72rem;color:#6a5a4a;';
+    row.innerHTML=`
+      <span style="font-weight:700;color:${item.opColor};min-width:14px;">${item.opSymbol}</span>
+      <div style="width:8px;height:8px;border-radius:2px;background:${item.regionColor||'#aaa'};flex-shrink:0;"></div>
+      <span style="flex:1;">${item.label}</span>
+      <span style="color:#bbb;font-size:0.65rem;">${item.regionName||''}</span>
+    `;
+    list.appendChild(row);
+  });
+  list.scrollTop = list.scrollHeight;
+}
+
+function clearLayerStack(){
+  layerHistory = [];
+  renderLayerStack();
+}
+
+// ═══════════════════════════════════════════
+// PRESETS  (mode: 'replace' | 'add' | 'subtract')
+// ═══════════════════════════════════════════
+
+let _layerLog = [];
+
+function pushLayerLog(type, mode){
+  const label = document.querySelector(`#presetSelect option[value="${type}"]`)?.textContent || type;
+  const reg   = getActiveRegion();
+  const sym   = mode==='add'?'＋' : mode==='subtract'?'－' : '✦';
+  const col   = mode==='add'?'#4a90c4' : mode==='subtract'?'#c03020' : '#9a8a7a';
+
+  // generate tiny element preview (18×18 canvas → dataURL)
+  let elemImgSrc = '';
+  let elemName = '';
+  if(reg && mode !== 'subtract'){
+    const el = ELEMENTS.find(e=>e.id===reg.elementId);
+    if(el){
+      elemName = el.name;
+      const oc=document.createElement('canvas'); oc.width=18; oc.height=18;
+      const oc2=oc.getContext('2d');
+      oc2.lineWidth=1; oc2.lineJoin='round'; oc2.lineCap='round';
+      el.draw(oc2,9,9,14,0,reg.stroke||'#1a1410',reg.fill||'#f5e8d0',reg.fillOn!==false);
+      elemImgSrc=oc.toDataURL();
+    }
+  }
+
+  _layerLog.push({label, sym, col, regionColor:reg?.color||'#aaa', regionName:reg?.name||'', elemImgSrc, elemName});
+
+  const log  = document.getElementById('layerLog');
+  const list = document.getElementById('layerLogList');
+  if(log) log.style.display='';
+  if(list){
+    const item = _layerLog[_layerLog.length-1];
+    const row  = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:4px;font-size:0.7rem;color:#6a5a4a;padding:2px 0;border-bottom:1px solid rgba(139,69,19,0.08);';
+
+    // op symbol
+    const opEl=document.createElement('span');
+    opEl.style.cssText=`font-weight:700;color:${item.col};min-width:12px;flex-shrink:0;`;
+    opEl.textContent=item.sym;
+
+    // region colour swatch
+    const swatch=document.createElement('div');
+    swatch.style.cssText=`width:7px;height:7px;border-radius:2px;background:${item.regionColor};flex-shrink:0;border:1px solid rgba(0,0,0,0.15);`;
+
+    // region name
+    const rName=document.createElement('span');
+    rName.style.cssText='color:#9a8a7a;font-size:0.65rem;flex-shrink:0;max-width:42px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    rName.textContent=item.regionName;
+
+    // preset label
+    const pLabel=document.createElement('span');
+    pLabel.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    pLabel.textContent=item.label;
+
+    row.appendChild(opEl);
+    row.appendChild(swatch);
+    row.appendChild(rName);
+    row.appendChild(pLabel);
+
+    // element preview (only for add/replace)
+    if(item.elemImgSrc){
+      const sep=document.createElement('span');
+      sep.style.cssText='color:rgba(139,69,19,0.3);font-size:0.65rem;flex-shrink:0;';
+      sep.textContent='→';
+      row.appendChild(sep);
+
+      const img=document.createElement('img');
+      img.src=item.elemImgSrc;
+      img.title=item.elemName;
+      img.style.cssText='width:16px;height:16px;border-radius:2px;flex-shrink:0;border:1px solid rgba(139,69,19,0.15);background:#faf6ee;';
+      row.appendChild(img);
+
+      const eName=document.createElement('span');
+      eName.style.cssText='color:#8a7a6a;font-size:0.62rem;flex-shrink:0;max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      // show only the Chinese part before the space
+      eName.textContent=item.elemName.split(' ')[0];
+      row.appendChild(eName);
+    }
+
+    list.appendChild(row);
+    list.scrollTop=list.scrollHeight;
+  }
+}
+
+function clearLayerLog(){
+  _layerLog=[];
+  const log=document.getElementById('layerLog');
+  const list=document.getElementById('layerLogList');
+  if(list) list.innerHTML='';
+  if(log) log.style.display='none';
+}
+
+function applyPreset(type, mode='replace'){
+  // build ghost matrix with the pattern for activeRegionId
+  const ghost = Array.from({length:GRID},()=>Array(GRID).fill(0));
+
+  if(mode==='replace'){
+    // clear everything, fill ghost, copy in
+    clearMatrix();
+    _fillPreset(ghost, type, activeRegionId);
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++)
+      if(ghost[r][c]) dotMatrix[r][c]=ghost[r][c];
+
+  } else if(mode==='add'){
+    // if matrix already has any dots → auto-create new region for this layer
+    const hasAny = dotMatrix.some(row=>row.some(v=>v>0));
+    if(hasAny){ saveActiveRegion(); addRegion(); }
+    const newId = activeRegionId;
+    const ghost2 = Array.from({length:GRID},()=>Array(GRID).fill(0));
+    _fillPreset(ghost2, type, newId);
+    // write only into empty cells — never overwrite existing regions
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++)
+      if(ghost2[r][c] && dotMatrix[r][c]===0) dotMatrix[r][c]=ghost2[r][c];
+
+  } else if(mode==='subtract'){
+    _fillPreset(ghost, type, 1); // id doesn't matter, we just need positions
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++)
+      if(ghost[r][c]) dotMatrix[r][c]=0;
+  }
+
+  pushLayerLog(type, mode);
+  drawMatrix(); updateMatrixInfo(); renderRegionList();
+}
+
+// ── internal: write preset pattern into a target matrix ──────────────────────
+function _fillPreset(mat, type, id){
+  if(type==='diagonal'){
+    for(let i=0;i<GRID;i++) mat[i][i]=id;
+    for(let i=0;i<GRID;i++) mat[i][GRID-1-i]=id;
+  } else if(type==='spiral'){
+    let top=2,bot=GRID-3,left=2,right=GRID-3;
+    while(top<=bot && left<=right){
+      for(let c=left;c<=right;c++) mat[top][c]=id;
+      for(let r=top+1;r<=bot;r++) mat[r][right]=id;
+      if(top<bot) for(let c=right-1;c>=left;c--) mat[bot][c]=id;
+      if(left<right) for(let r=bot-1;r>top;r--) mat[r][left]=id;
+      top+=2; bot-=2; left+=2; right-=2;
+    }
+  } else if(type==='circle'){
+    const cx=GRID/2-0.5, cy=GRID/2-0.5, radii=[4,8,12,14];
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const d=Math.sqrt((r-cy)**2+(c-cx)**2);
+      if(radii.some(rad=>Math.abs(d-rad)<1)) mat[r][c]=id;
+    }
+  } else if(type==='grid'){
+    for(let r=0;r<GRID;r+=3) for(let c=0;c<GRID;c++) mat[r][c]=id;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c+=3) mat[r][c]=id;
+  } else if(type==='diamond'){
+    const cx=GRID/2-0.5, cy=GRID/2-0.5, rads=[3,6,9,12];
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const d=Math.abs(r-cy)+Math.abs(c-cx);
+      if(rads.some(rad=>Math.abs(d-rad)<1.2)) mat[r][c]=id;
+    }
+  } else if(type==='wave'){
+    for(let c=0;c<GRID;c++){
+      const r1=Math.round(GRID/2-1+6*Math.sin(c*Math.PI/6));
+      const r2=Math.round(GRID/2-1+6*Math.sin(c*Math.PI/6+Math.PI));
+      if(r1>=0&&r1<GRID) mat[r1][c]=id;
+      if(r2>=0&&r2<GRID) mat[r2][c]=id;
+    }
+  } else if(type==='radiate'){
+    const cx=GRID/2-0.5, cy=GRID/2-0.5;
+    const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const dx=c-cx,dy=r-cy,len=Math.sqrt(dx*dx+dy*dy);
+      if(len<1){mat[r][c]=id;continue;}
+      const nx=dx/len,ny=dy/len;
+      const onRay=dirs.some(([ax,ay])=>{ const dot=nx*ax+ny*ay,cross=Math.abs(nx*ay-ny*ax); return dot>0.85&&cross<0.15&&len>1.5&&len<GRID/2-1; });
+      if(onRay) mat[r][c]=id;
+    }
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const d=Math.sqrt((r-cy)**2+(c-cx)**2);
+      if([5,9,13].some(rad=>Math.abs(d-rad)<0.9)) mat[r][c]=id;
+    }
+  } else if(type==='xcross'){
+    const cx=GRID/2-0.5,cy=GRID/2-0.5;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const dx=c-cx,dy=r-cy;
+      if(Math.abs(dx-dy)<1.8||Math.abs(dx+dy)<1.8) mat[r][c]=id;
+    }
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      if(Math.abs(Math.abs(c-cx)+Math.abs(r-cy)-5)<1) mat[r][c]=id;
+    }
+  } else if(type==='border'){
+    [0,1,2,4,6].forEach(m=>{
+      for(let c=m;c<GRID-m;c++){ mat[m][c]=id; mat[GRID-1-m][c]=id; }
+      for(let r=m+1;r<GRID-1-m;r++){ mat[r][m]=id; mat[r][GRID-1-m]=id; }
+    });
+    [[4,4],[4,GRID-5],[GRID-5,4],[GRID-5,GRID-5]].forEach(([cr,cc])=>{
+      for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+        if(Math.abs(r-cr)+Math.abs(c-cc)<=3) mat[r][c]=id;
+      }
+    });
+  } else if(type==='triangle3'){
+    const cx=GRID/2-0.5;
+    for(let i=0;i<GRID;i++){
+      const c1=Math.round(i); if(c1<GRID) mat[i][c1]=id;
+      const c2=Math.round(GRID-1-i); if(c2>=0) mat[i][c2]=id;
+      mat[i][Math.round(cx)]=id;
+    }
+    for(let c=0;c<GRID;c++) mat[Math.round(GRID/2-0.5)][c]=id;
+  } else if(type==='sunburst'){
+    const cx=GRID/2-0.5,cy=GRID/2-0.5,rays=16;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const dx=c-cx,dy=r-cy,len=Math.sqrt(dx*dx+dy*dy);
+      if(len<1.2){mat[r][c]=id;continue;}
+      const angle=Math.atan2(dy,dx),sector=Math.round(angle/(Math.PI*2/rays));
+      const diff=Math.abs(Math.atan2(Math.sin(angle-sector*Math.PI*2/rays),Math.cos(angle-sector*Math.PI*2/rays)));
+      if(diff<0.12&&len>1.5&&len<GRID/2-0.5) mat[r][c]=id;
+    }
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const d=Math.sqrt((r-cy)**2+(c-cx)**2);
+      if(Math.abs(d-6)<0.9||Math.abs(d-11)<0.9) mat[r][c]=id;
+    }
+  } else if(type==='totemstack'){
+    const bands=5,bh=Math.floor(GRID/bands);
+    for(let b=0;b<bands;b++){
+      const rowTop=b*bh,rowBot=rowTop+bh-1;
+      for(let c=0;c<GRID;c++){ mat[rowTop][c]=id; mat[Math.min(rowBot,GRID-1)][c]=id; }
+      for(let r=rowTop;r<=rowBot;r++) mat[r][Math.round(GRID/2-0.5)]=id;
+      const midR=Math.round((rowTop+rowBot)/2);
+      for(let w=0;w<4;w++){ if(w<GRID) mat[midR][w]=id; if(GRID-1-w>=0) mat[midR][GRID-1-w]=id; }
+    }
+  } else if(type==='tw_rhombus'){
+    const cx=GRID/2-0.5;
+    [-8,0,8].forEach(offset=>{
+      const colX=cx+offset;
+      for(let r=1;r<GRID-1;r++){
+        const phase=r%6,off=[0,1,2,1,0,-1][phase]||0;
+        const c=Math.round(colX+off*2);
+        if(c>=0&&c<GRID) mat[r][c]=id;
+      }
+    });
+  } else if(type==='tw_chevron'){
+    const cx=GRID/2-0.5;
+    for(let r=0;r<GRID;r++){
+      const v=(r%8<4)?r%8:7-r%8;
+      [Math.round(cx-v),Math.round(cx+v)].forEach(c=>{ if(c>=0&&c<GRID) mat[r][c]=id; });
+    }
+  } else if(type==='tw_cross4'){
+    for(let r=2;r<GRID;r+=5) for(let c=0;c<GRID;c++) mat[r][c]=id;
+    for(let c=2;c<GRID;c+=5) for(let r=0;r<GRID;r++) mat[r][c]=id;
+    for(let r=2;r<GRID;r+=5) for(let c=2;c<GRID;c+=5){
+      [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{ const nr=r+dr,nc=c+dc; if(nr>=0&&nr<GRID&&nc>=0&&nc<GRID) mat[nr][nc]=id; });
+    }
+  } else if(type==='tw_centipede'){
+    const cx=GRID/2-0.5;
+    for(let r=2;r<GRID-2;r+=5){
+      [[-1,1],[0,2],[1,1],[0,0],[-1,-1],[0,-2],[1,-1],[0,0]].forEach(([dr,dc])=>{
+        const nr=r+dr,nc=Math.round(cx+dc); if(nr>=0&&nr<GRID&&nc>=0&&nc<GRID) mat[nr][nc]=id;
+      });
+      for(let s=1;s<=3;s++){
+        [[r-1,Math.round(cx)-s],[r,Math.round(cx)-s-1],[r+1,Math.round(cx)-s],
+         [r-1,Math.round(cx)+s],[r,Math.round(cx)+s+1],[r+1,Math.round(cx)+s]]
+        .forEach(([nr,nc])=>{ if(nr>=0&&nr<GRID&&nc>=0&&nc<GRID) mat[nr][nc]=id; });
+      }
+    }
+  } else if(type==='tw_sun'){
+    const cx=GRID/2-0.5,cy=GRID/2-0.5,rays=12;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const dx=c-cx,dy=r-cy,len=Math.sqrt(dx*dx+dy*dy);
+      if(len<1){mat[r][c]=id;continue;}
+      const angle=Math.atan2(dy,dx),sector=Math.round(angle/(Math.PI*2/rays));
+      const diff=Math.abs(Math.atan2(Math.sin(angle-sector*Math.PI*2/rays),Math.cos(angle-sector*Math.PI*2/rays)));
+      if(diff<0.11&&len>1&&len<GRID/2-1) mat[r][c]=id;
+    }
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      const d=Math.sqrt((r-cy)**2+(c-cx)**2);
+      if(Math.abs(d-5)<0.8||Math.abs(d-10)<0.8) mat[r][c]=id;
+    }
+    for(let i=0;i<rays;i++){
+      const a=i*Math.PI*2/rays,rr=Math.round(cy+Math.sin(a)*7.5),cc=Math.round(cx+Math.cos(a)*7.5);
+      if(rr>=0&&rr<GRID&&cc>=0&&cc<GRID) mat[rr][cc]=id;
+    }
+  } else if(type==='tw_weave'){
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      if((r+c)%4===0||(r-c+GRID)%4===0) mat[r][c]=id;
+    }
+  } else if(type==='bp_scatter'){
+    const cx=GRID/2-0.5,cy=GRID/2-0.5;
+    [[cx-8,cy-7],[cx+7,cy-8],[cx-6,cy+8],[cx+8,cy+6],[cx,cy],[cx-3,cy-12],[cx+12,cy+2],[cx-11,cy+3]].forEach(([ccx,ccy])=>{
+      [[-1,-1],[-1,0],[0,-1],[0,0],[1,0],[0,1]].forEach(([dr,dc])=>{
+        const rr=Math.round(ccy+dr),cc=Math.round(ccx+dc);
+        if(rr>=0&&rr<GRID&&cc>=0&&cc<GRID) mat[rr][cc]=id;
+      });
+    });
+  } else if(type==='bp_checker'){
+    const blockSize=Math.floor(GRID/4);
+    for(let br=0;br<4;br++) for(let bc=0;bc<4;bc++){
+      if((br+bc)%2===0){
+        for(let r=0;r<blockSize;r++) for(let c=0;c<blockSize;c++){
+          const rr=br*blockSize+r,cc=bc*blockSize+c;
+          if(rr<GRID&&cc<GRID) mat[rr][cc]=id;
+        }
+      }
+    }
+  } else if(type==='bp_star'){
+    const unit=Math.floor(GRID/3),u3=Math.floor(unit/3);
+    for(let br=0;br<3;br++) for(let bc=0;bc<3;bc++){
+      const or=br*unit,oc=bc*unit;
+      for(let r=u3;r<u3*2;r++) for(let c=u3;c<u3*2;c++){
+        const rr=or+r,cc=oc+c; if(rr<GRID&&cc<GRID) mat[rr][cc]=id;
+      }
+      [[0,u3],[u3*2,u3],[u3,0],[u3,u3*2]].forEach(([dr,dc])=>{
+        for(let r=0;r<u3;r++) for(let c=0;c<u3;c++){
+          const rr=or+dr+r,cc=oc+dc+c; if(rr<GRID&&cc<GRID) mat[rr][cc]=id;
+        }
+      });
+    }
+  } else if(type==='bp_sashiko'){
+    for(let r=0;r<GRID;r+=2) for(let c=0;c<GRID;c++) mat[r][c]=id;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c+=2) mat[r][c]=id;
+    for(let r=0;r<GRID;r+=4) for(let c=0;c<GRID;c+=4){
+      [[-1,-1],[1,1],[1,-1],[-1,1]].forEach(([dr,dc])=>{
+        const rr=r+dr,cc=c+dc; if(rr>=0&&rr<GRID&&cc>=0&&cc<GRID) mat[rr][cc]=id;
+      });
+    }
+  }
+}
+// ═══════════════════════════════════════════
+// OUTPUT RENDER
+// ═══════════════════════════════════════════
+const outCanvas = document.getElementById('outputCanvas');
+const outCtx = outCanvas.getContext('2d');
+
+// ─── helpers ───
+function hexToRgb(hex){
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return [r,g,b];
+}
+function rgbToHex(r,g,b){
+  return '#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+}
+function lerpColor(hex1, hex2, t){
+  const [r1,g1,b1]=hexToRgb(hex1), [r2,g2,b2]=hexToRgb(hex2);
+  return rgbToHex(r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t);
+}
+
+// ─── pressure value at normalised coords (nx,ny) ∈ [0,1] ───
+function getPressure(nx, ny, mode, noiseScale){
+  switch(mode){
+    case 'radial': {
+      const dx=nx-0.5, dy=ny-0.5;
+      return Math.sqrt(dx*dx+dy*dy)*2; // 0 centre → 1 edge
+    }
+    case 'radial-in': {
+      const dx=nx-0.5, dy=ny-0.5;
+      return 1 - Math.sqrt(dx*dx+dy*dy)*2;
+    }
+    case 'horizontal': return nx;
+    case 'vertical':   return ny;
+    case 'noise': {
+      const n = PerlinNoise.octave(nx*noiseScale, ny*noiseScale, 4, 0.5, 2.0);
+      return (n+1)*0.5; // 0..1
+    }
+    default: return 0.5;
+  }
+}
+
+function renderOutput(){
+  const size = parseInt(document.getElementById('outputSize').value);
+  outCanvas.width = size; outCanvas.height = size;
+  outCanvas.style.width = Math.min(size,500)+'px';
+  outCanvas.style.height = Math.min(size,500)+'px';
+
+  const bg = document.getElementById('bgColor').value;
+  outCtx.fillStyle = bg;
+  outCtx.fillRect(0,0,size,size);
+
+  const baseLW = parseFloat(document.getElementById('lineWidth').value);
+  const cellW = size/GRID;
+  outCtx.lineJoin='round'; outCtx.lineCap='round';
+  const SEED_OFFSET = 47.3;
+
+  // Collect points grouped by region
+  const byRegion = {};
+  for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+    const v = dotMatrix[r][c];
+    if(v>0){ if(!byRegion[v]) byRegion[v]=[]; byRegion[v].push({r,c}); }
+  }
+
+  // Render each region with its own settings
+  regions.forEach(reg=>{
+    const pts = byRegion[reg.id] || [];
+    if(!pts.length) return;
+    const el = ELEMENTS.find(e=>e.id===reg.elementId);
+    if(!el) return;
+
+    const noiseStr  = reg.noiseStr / 100;
+    const noiseScl  = reg.noiseScl;
+    const pressRng  = reg.pressRng / 100;
+    const baseSize  = reg.elemSize;
+    const baseRot   = reg.elemRot * Math.PI / 180;
+
+    pts.forEach(({r,c})=>{
+      let cx = (c+0.5)*cellW, cy = (r+0.5)*cellW;
+      const nx=(c+0.5)/GRID, ny=(r+0.5)/GRID;
+
+      // Perlin noise displacement
+      if(reg.noiseOn){
+        const ndx=PerlinNoise.octave(nx*noiseScl, ny*noiseScl, 4,0.5,2);
+        const ndy=PerlinNoise.octave(nx*noiseScl+SEED_OFFSET, ny*noiseScl+SEED_OFFSET, 4,0.5,2);
+        cx += ndx * noiseStr * cellW * 0.9;
+        cy += ndy * noiseStr * cellW * 0.9;
+      }
+
+      // Pressure mapping
+      let pressure = 0.5;
+      if(reg.pressOn){
+        pressure = Math.max(0,Math.min(1, getPressure(nx, ny, reg.pressDir, noiseScl)));
+      }
+      const lwMin = Math.max(0.3, baseLW*(1-pressRng));
+      const lwMax = baseLW*(1+pressRng);
+      const lw = reg.pressOn ? lwMin+pressure*(lwMax-lwMin) : baseLW;
+      outCtx.lineWidth = lw*(size/500);
+
+      const sz = reg.randomSize
+        ? baseSize*(0.6+Math.random()*0.8)*(size/500)
+        : baseSize*(size/500);
+      const rot = reg.randomRot ? Math.random()*Math.PI*2 : baseRot;
+
+      let drawStroke = reg.stroke;
+      if(reg.pressOn && pressRng>0.1){
+        drawStroke = lerpColor(reg.stroke,'#000000',pressure*0.25);
+      }
+
+      el.draw(outCtx, cx, cy, sz, rot, drawStroke, reg.fill, reg.fillOn);
+    });
+  });
+}
+
+function setupSliders(){
+  // All slider/input changes auto-save to active region
+  const ids=['elemSize','elemRot','noiseStrength','noiseScale','pressureRange',
+             'strokeColor','fillColor','fillEnabled','randomRot','randomSize',
+             'noiseEnabled','pressureEnabled','pressureDir','lineWidth','outputSize'];
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('change', ()=>saveActiveRegion());
+    if(el && el.type==='range') el.addEventListener('input', ()=>{
+      saveActiveRegion();
+      // update displayed value
+      const valEl=document.getElementById(id+'Val');
+      if(valEl){
+        if(id==='elemRot') valEl.textContent=el.value+'°';
+        else valEl.textContent=el.value;
+      }
+    });
+  });
+  document.getElementById('outputSize').addEventListener('change',renderOutput);
+}
+
+// ═══════════════════════════════════════════
+// RANDOM DEMO
+// ═══════════════════════════════════════════
+function randomDemo(){
+  // Build a multi-region demo
+  saveActiveRegion();
+  clearMatrix();
+
+  const presets=['diagonal','spiral','circle','grid','diamond','wave'];
+  const palettes=[
+    {stroke:'#1a1410',fill:'#f5e8d0'},
+    {stroke:'#2c4a2e',fill:'#d4e8d0'},
+    {stroke:'#1a2840',fill:'#d0dff5'},
+    {stroke:'#4a1a2c',fill:'#f5d0e0'},
+    {stroke:'#3d2b00',fill:'#f0e0b0'},
+    {stroke:'#203020',fill:'#d8f0d8'},
+  ];
+
+  // reset to 2 regions
+  regions = [];
+  regionIdCounter = 0;
+  for(let i=0;i<2;i++){
+    regionIdCounter++;
+    const reg = makeRegion(regionIdCounter, i);
+    reg.elementId = ELEMENTS[Math.floor(Math.random()*ELEMENTS.length)].id;
+    const pal = palettes[i % palettes.length];
+    reg.stroke = pal.stroke; reg.fill = pal.fill;
+    reg.randomRot = true;
+    regions.push(reg);
+  }
+
+  activeRegionId = regions[0].id;
+  // fill region 1 with one preset
+  const p1 = presets[Math.floor(Math.random()*presets.length)];
+  applyPreset(p1);
+
+  // fill region 2 with another preset
+  activeRegionId = regions[1].id;
+  const p2 = presets.filter(p=>p!==p1)[Math.floor(Math.random()*5)];
+  applyPreset(p2);
+
+  activeRegionId = regions[0].id;
+  renderRegionList();
+  loadActiveRegion();
+  buildElementList();
+  renderOutput();
+}
+
+// ═══════════════════════════════════════════
+// DOWNLOAD
+// ═══════════════════════════════════════════
+function downloadPNG(){
+  renderOutput();
+  const link=document.createElement('a');
+  link.download='zentangle.png';
+  link.href=outCanvas.toDataURL('image/png');
+  link.click();
+}
+
+function downloadSVG(){
+  // Re-render into an SVG by replacing the Canvas 2D API with an SVG path recorder
+  const size = parseInt(document.getElementById('outputSize').value);
+  const bg   = document.getElementById('bgColor').value;
+  const baseLW = parseFloat(document.getElementById('lineWidth').value);
+
+  // ── SVG path-recording context shim ──────────────────────────────────────
+  // We intercept canvas draw calls and emit SVG elements instead.
+  const svgPaths = [];   // array of {d, stroke, fill, lw, alpha}
+  let _stroke='#000', _fill='#fff', _lw=1, _alpha=1, _join='round', _cap='round';
+  let _transform=[];     // stack of {tx,ty,rot,sx,sy}
+  let _cx=0,_cy=0;       // current path cursor
+  let _curD='';          // current path d string
+  let _clips=[];         // clip stack (we approximate by ignoring clip for SVG simplicity)
+
+  // transform helpers
+  const applyT=(x,y)=>{
+    let px=x,py=y;
+    for(let i=_transform.length-1;i>=0;i--){
+      const t=_transform[i];
+      let tx=px*t.sx, ty=py*t.sy;
+      const cos=Math.cos(t.rot), sin=Math.sin(t.rot);
+      const rx=tx*cos-ty*sin, ry=tx*sin+ty*cos;
+      px=rx+t.tx; py=ry+t.ty;
+    }
+    return [px,py];
+  };
+  const r6=v=>Math.round(v*1000)/1000;
+
+  const ctx2svg = {
+    get lineWidth(){ return _lw; },
+    set lineWidth(v){ _lw=v; },
+    get strokeStyle(){ return _stroke; },
+    set strokeStyle(v){ _stroke=v; },
+    get fillStyle(){ return _fill; },
+    set fillStyle(v){ _fill=v; },
+    get globalAlpha(){ return _alpha; },
+    set globalAlpha(v){ _alpha=v; },
+    get lineJoin(){ return _join; },
+    set lineJoin(v){ _join=v; },
+    get lineCap(){ return _cap; },
+    set lineCap(v){ _cap=v; },
+
+    save(){ _transform.push({ tx: _transform.length?_transform[_transform.length-1].tx:0, ty:_transform.length?_transform[_transform.length-1].ty:0, rot:0, sx:1, sy:1, _stroke, _fill, _lw, _alpha, _join, _cap }); },
+    restore(){
+      if(_transform.length){
+        const t=_transform.pop();
+        _stroke=t._stroke; _fill=t._fill; _lw=t._lw; _alpha=t._alpha; _join=t._join; _cap=t._cap;
+      }
+    },
+    translate(tx,ty){
+      if(!_transform.length) _transform.push({tx:0,ty:0,rot:0,sx:1,sy:1,_stroke,_fill,_lw,_alpha,_join,_cap});
+      const t=_transform[_transform.length-1];
+      // accumulate translation by rotating through current rotation
+      const cos=Math.cos(t.rot), sin=Math.sin(t.rot);
+      t.tx += tx*cos - ty*sin;
+      t.ty += tx*sin + ty*cos;
+    },
+    rotate(a){
+      if(!_transform.length) _transform.push({tx:0,ty:0,rot:0,sx:1,sy:1,_stroke,_fill,_lw,_alpha,_join,_cap});
+      _transform[_transform.length-1].rot += a;
+    },
+    scale(sx,sy){
+      if(!_transform.length) _transform.push({tx:0,ty:0,rot:0,sx:1,sy:1,_stroke,_fill,_lw,_alpha,_join,_cap});
+      const t=_transform[_transform.length-1]; t.sx*=sx; t.sy*=sy;
+    },
+
+    beginPath(){ _curD=''; },
+    closePath(){ _curD+='Z '; },
+    moveTo(x,y){ const [px,py]=applyT(x,y); _curD+=`M${r6(px)} ${r6(py)} `; _cx=px; _cy=py; },
+    lineTo(x,y){ const [px,py]=applyT(x,y); _curD+=`L${r6(px)} ${r6(py)} `; _cx=px; _cy=py; },
+    bezierCurveTo(c1x,c1y,c2x,c2y,ex,ey){
+      const [pc1x,pc1y]=applyT(c1x,c1y), [pc2x,pc2y]=applyT(c2x,c2y), [pex,pey]=applyT(ex,ey);
+      _curD+=`C${r6(pc1x)} ${r6(pc1y)} ${r6(pc2x)} ${r6(pc2y)} ${r6(pex)} ${r6(pey)} `;
+      _cx=pex; _cy=pey;
+    },
+    arc(x,y,radius,startAngle,endAngle,ccw=false){
+      if(Math.abs(endAngle-startAngle)>=Math.PI*2-0.001){
+        // full circle → two half arcs
+        const [cx2,cy2]=applyT(x,y);
+        const t=_transform.length?_transform[_transform.length-1]:{sx:1,sy:1,rot:0};
+        const r=radius*(t.sx||1);
+        _curD+=`M${r6(cx2-r)} ${r6(cy2)} A${r6(r)} ${r6(r)} 0 1 0 ${r6(cx2+r)} ${r6(cy2)} A${r6(r)} ${r6(r)} 0 1 0 ${r6(cx2-r)} ${r6(cy2)} `;
+      } else {
+        const steps=Math.max(8,Math.ceil(Math.abs(endAngle-startAngle)*radius/3));
+        const da=(endAngle-startAngle)/steps*(ccw?-1:1);
+        for(let i=0;i<=steps;i++){
+          const a=startAngle+i*da*(ccw?-1:1);
+          const [px,py]=applyT(x+Math.cos(a)*radius, y+Math.sin(a)*radius);
+          _curD+= i===0 ? `M${r6(px)} ${r6(py)} ` : `L${r6(px)} ${r6(py)} `;
+        }
+      }
+    },
+    ellipse(x,y,rx,ry,rotation,startAngle,endAngle){
+      const steps=24;
+      const full=Math.abs(endAngle-startAngle)>=Math.PI*2-0.001;
+      const total=full?steps:Math.ceil(Math.abs(endAngle-startAngle)/Math.PI*12);
+      for(let i=0;i<=(full?total:total);i++){
+        const t2=full ? (i/total)*Math.PI*2 : startAngle+(endAngle-startAngle)*i/total;
+        const ex=x+Math.cos(t2)*rx*Math.cos(rotation)-Math.sin(t2)*ry*Math.sin(rotation);
+        const ey=y+Math.cos(t2)*rx*Math.sin(rotation)+Math.sin(t2)*ry*Math.cos(rotation);
+        const [px,py]=applyT(ex,ey);
+        _curD+= i===0?`M${r6(px)} ${r6(py)} `:`L${r6(px)} ${r6(py)} `;
+      }
+      if(full) _curD+='Z ';
+    },
+    rect(x,y,w,h){
+      const corners=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]].map(([px,py])=>applyT(px,py));
+      _curD+=`M${r6(corners[0][0])} ${r6(corners[0][1])} L${r6(corners[1][0])} ${r6(corners[1][1])} L${r6(corners[2][0])} ${r6(corners[2][1])} L${r6(corners[3][0])} ${r6(corners[3][1])} Z `;
+    },
+    roundRect(x,y,w,h,rad=0){
+      // approximate as rect for SVG simplicity
+      this.rect(x,y,w,h);
+    },
+    clip(){ /* ignore clip for SVG export */ },
+
+    stroke(){
+      if(_curD.trim()) svgPaths.push({d:_curD,mode:'stroke',stroke:_stroke,lw:_lw*(size/500),alpha:_alpha,join:_join,cap:_cap});
+    },
+    fill(){
+      if(_curD.trim()) svgPaths.push({d:_curD,mode:'fill',fill:_fill,alpha:_alpha});
+    },
+    fillRect(x,y,w,h){
+      const old=_curD; this.rect(x,y,w,h);
+      svgPaths.push({d:_curD,mode:'fill',fill:_fill,alpha:_alpha});
+      _curD=old;
+    },
+    strokeRect(x,y,w,h){
+      const old=_curD; this.rect(x,y,w,h);
+      svgPaths.push({d:_curD,mode:'stroke',stroke:_stroke,lw:_lw*(size/500),alpha:_alpha,join:_join,cap:_cap});
+      _curD=old;
+    },
+    clearRect(){},
+  };
+
+  // ── render into SVG context ──────────────────────────────────────────────
+  const cellW = size/GRID;
+  const SEED_OFFSET = 47.3;
+
+  // background rect
+  svgPaths.push({d:`M0 0 L${size} 0 L${size} ${size} L0 ${size} Z`,mode:'fill',fill:bg,alpha:1});
+
+  ctx2svg.lineJoin='round'; ctx2svg.lineCap='round';
+
+  const byRegion={};
+  for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+    const v=dotMatrix[r][c]; if(v>0){ if(!byRegion[v]) byRegion[v]=[]; byRegion[v].push({r,c}); }
+  }
+
+  const noiseOn_g  = document.getElementById('noiseEnabled').checked;
+  const noiseStr_g = parseInt(document.getElementById('noiseStrength').value)/100;
+  const noiseScl_g = parseFloat(document.getElementById('noiseScale').value);
+
+  regions.forEach(reg=>{
+    const pts=byRegion[reg.id]||[]; if(!pts.length) return;
+    const el=ELEMENTS.find(e=>e.id===reg.elementId); if(!el) return;
+    const noiseStr=reg.noiseStr/100, noiseScl=reg.noiseScl;
+    const pressRng=reg.pressRng/100;
+    const baseSize=reg.elemSize, baseRot=reg.elemRot*Math.PI/180;
+    ctx2svg.lineWidth = (baseLW*(size/500));
+
+    pts.forEach(({r,c})=>{
+      let cx2=(c+0.5)*cellW, cy2=(r+0.5)*cellW;
+      const nx=(c+0.5)/GRID, ny=(r+0.5)/GRID;
+      if(reg.noiseOn){
+        const ndx=PerlinNoise.octave(nx*noiseScl,ny*noiseScl,4,0.5,2);
+        const ndy=PerlinNoise.octave(nx*noiseScl+SEED_OFFSET,ny*noiseScl+SEED_OFFSET,4,0.5,2);
+        cx2+=ndx*noiseStr*cellW*0.9; cy2+=ndy*noiseStr*cellW*0.9;
+      }
+      let pressure=0.5;
+      if(reg.pressOn) pressure=Math.max(0,Math.min(1,getPressure(nx,ny,reg.pressDir,noiseScl)));
+      const lwMin=Math.max(0.3,baseLW*(1-pressRng)), lwMax=baseLW*(1+pressRng);
+      ctx2svg.lineWidth=(reg.pressOn?lwMin+pressure*(lwMax-lwMin):baseLW)*(size/500);
+      const sz=reg.randomSize?baseSize*(0.6+Math.random()*0.8)*(size/500):baseSize*(size/500);
+      const rot=reg.randomRot?Math.random()*Math.PI*2:baseRot;
+      let drawStroke=reg.stroke;
+      if(reg.pressOn&&pressRng>0.1) drawStroke=lerpColor(reg.stroke,'#000000',pressure*0.25);
+
+      // reset transform stack per element
+      _transform=[];
+      el.draw(ctx2svg, cx2, cy2, sz, rot, drawStroke, reg.fill, reg.fillOn);
+      _transform=[];
+    });
+  });
+
+  // ── assemble SVG string ──────────────────────────────────────────────────
+  const pathEls = svgPaths.map(p=>{
+    if(p.mode==='fill'){
+      const a=p.alpha<1?` opacity="${r6(p.alpha)}"`:'' ;
+      return `<path d="${p.d.trim()}" fill="${p.fill}"${a}/>`;
+    } else {
+      const a=p.alpha<1?` opacity="${r6(p.alpha)}"`:'' ;
+      return `<path d="${p.d.trim()}" fill="none" stroke="${p.stroke}" stroke-width="${r6(p.lw)}" stroke-linejoin="${p.join}" stroke-linecap="${p.cap}"${a}/>`;
+    }
+  }).join('\n');
+
+  const svgStr=`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+${pathEls}
+</svg>`;
+
+  const blob=new Blob([svgStr],{type:'image/svg+xml'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.download='zentangle.svg';
+  link.href=url;
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(r=>console.log('SW registered:', r.scope))
+      .catch(e=>console.warn('SW registration failed:', e));
+  });
+}
+</script>
+
+</body>
+</html>

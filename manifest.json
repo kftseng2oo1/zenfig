@@ -1,0 +1,16 @@
+{
+  "name": "纏繞畫生成器 Zentangle",
+  "short_name": "纏繞畫",
+  "description": "以點矩陣定義圖元位置，自由創作禪繞藝術",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f0e8",
+  "theme_color": "#8b4513",
+  "orientation": "any",
+  "lang": "zh-TW",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["art", "creativity", "education"]
+}
